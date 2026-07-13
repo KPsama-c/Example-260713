@@ -10,9 +10,7 @@
 from __future__ import annotations
 
 import argparse
-import random
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -23,13 +21,12 @@ if str(ROOT) not in sys.path:
 from yuketang import __version__
 from yuketang.browser import BrowserSession
 from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
-from yuketang.jobs import run_automation
+from yuketang.doctor import format_doctor_report, run_doctor
+from yuketang.jobs import run_automation, select_soft_targets, watch_lesson_batch
 from yuketang.login import ensure_login
 from yuketang.logs import LogsApiError, list_pending_replays, normalize_attend_filter
 from yuketang.progress import FailedStore, ProgressStore, SoftStore
 from yuketang.rate import PRESETS, rate_help_text, resolve_playback_rate
-from yuketang.replay import watch_replay
-from yuketang.doctor import format_doctor_report, run_doctor
 from yuketang.settings import (
     activate_profile,
     apply_classroom_input,
@@ -49,7 +46,7 @@ from yuketang.ui import (
     settings_submenu,
     wizard_first_run,
 )
-from yuketang.util import origin_of, progress_key, resolve_path
+from yuketang.util import origin_of, resolve_path
 
 DISCLAIMER_FILE = ROOT / "DISCLAIMER.md"
 
@@ -158,95 +155,6 @@ def print_pending(pending: list) -> None:
         attend = "已签到" if item.attend_status else "缺勤"
         print(f"  {i:3d}. {item.title}")
         print(f"       lesson={item.lesson_id}  ({attend})")
-
-
-def run_watch_batch(
-    page,
-    session: BrowserSession,
-    *,
-    classroom_id: str,
-    origin: str,
-    pending: list,
-    limit: int,
-    rate: float,
-    complete_ratio: float,
-    max_watch: int,
-    progress: ProgressStore,
-    failed: FailedStore,
-    soft: SoftStore,
-    data_dir: Path,
-    shot_on_err: bool,
-    pause_lo: float,
-    pause_hi: float,
-    confirm_grace_sec: int = 120,
-    soft_boost: float = 0.10,
-    require_platform: bool = True,
-) -> tuple[int, int, int]:
-    """返回 (平台确认数, 失败数, soft数)。菜单会话内复用浏览器。"""
-    done_count = 0
-    fail_count = 0
-    soft_count = 0
-    if not pending:
-        return 0, 0, 0
-    targets = pending[: limit if limit > 0 else len(pending)]
-    cid = str(classroom_id)
-    for idx, item in enumerate(targets, 1):
-        print("-" * 56)
-        print(f"[main] ({idx}/{len(targets)}) {item.title}")
-        print(f"[main] lesson_id={item.lesson_id}  倍速={rate}x  目标≥{complete_ratio*100:.0f}%")
-        result = watch_replay(
-            page,
-            classroom_id=classroom_id,
-            lesson_id=item.lesson_id,
-            origin=origin,
-            rate=rate,
-            complete_ratio=complete_ratio,
-            max_watch_sec=max_watch,
-            log=print,
-            title=item.title,
-            confirm_grace_sec=confirm_grace_sec,
-            soft_boost=soft_boost,
-        )
-        pkey = progress_key(cid, item.lesson_id)
-        if result.platform_confirmed:
-            progress.mark_done(
-                pkey, item.title, classroom_id=cid, lesson_id=item.lesson_id
-            )
-            soft.remove(cid, item.lesson_id)
-            done_count += 1
-            session.save_state()
-            print("[main] [OK] 平台已确认，已写入断点")
-        elif result.ok:
-            session.save_state()
-            if require_platform:
-                soft.add(
-                    classroom_id=cid,
-                    lesson_id=item.lesson_id,
-                    title=item.title,
-                    local_ratio=result.local_ratio,
-                )
-                soft_count += 1
-                print(
-                    f"[main] [SOFT] 本地 {result.local_ratio*100:.1f}% 但平台未确认，未写断点"
-                )
-            else:
-                progress.mark_done(
-                    pkey, item.title, classroom_id=cid, lesson_id=item.lesson_id
-                )
-                done_count += 1
-                print("[main] [OK] 本地达标已写断点（require_platform_confirm=false）")
-        else:
-            fail_count += 1
-            failed.add(pkey, item.title, result.reason or "watch_replay failed")
-            if shot_on_err:
-                session.screenshot(data_dir / f"fail_replay_{item.lesson_id}.png")
-            print(f"[main] [FAIL] 本节失败 ({result.reason})")
-        if idx < len(targets):
-            delay = random.uniform(pause_lo, pause_hi)
-            print(f"[main] 休息 {delay:.1f}s …")
-            time.sleep(delay)
-    session.save_state()
-    return done_count, fail_count, soft_count
 
 
 def ensure_resolved_classroom(
@@ -577,21 +485,19 @@ def main() -> int:
                 continue
 
             if action == "soft":
-                soft_ids = {s.lesson_id for s in soft.for_classroom(str(classroom_id))}
-                pending = [it for it in pending if it.lesson_id in soft_ids]
+                pending = select_soft_targets(pending, soft, str(classroom_id))
                 if not pending:
                     print("[main] 无 SOFT 待重试（或已全部转正）")
                     continue
                 print(f"[main] 仅 SOFT 再跑：{len(pending)} 节")
 
-            limit = 1 if action == "once" else len(pending)
-            done, fail, soft_n = run_watch_batch(
+            targets = pending[:1] if action == "once" else list(pending)
+            batch = watch_lesson_batch(
                 page,
                 session,
-                classroom_id=classroom_id,
+                classroom_id=str(classroom_id),
                 origin=origin,
-                pending=pending,
-                limit=limit,
+                targets=targets,
                 rate=rate,
                 complete_ratio=complete_ratio,
                 max_watch=max_watch,
@@ -599,13 +505,20 @@ def main() -> int:
                 failed=failed,
                 soft=soft,
                 data_dir=data_dir,
-                shot_on_err=shot_on_err,
                 pause_lo=pause_lo,
                 pause_hi=pause_hi,
                 confirm_grace_sec=confirm_grace_sec,
                 soft_boost=soft_boost,
                 require_platform=require_platform,
+                retry_per_lesson=int(cfg.get("retry_per_lesson", 1)),
+                shot_on_err=shot_on_err,
+                log=print,
+                should_cancel=None,
+                update_state=False,
             )
+            done = int(batch.get("done") or 0)
+            fail = int(batch.get("fail") or 0)
+            soft_n = int(batch.get("soft_done") or 0)
             total_done += done
             total_fail += fail
             print(

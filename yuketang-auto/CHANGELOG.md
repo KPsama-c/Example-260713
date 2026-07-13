@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.6] - 2026-07-13
+
+### 修复与去重
+- 修复 `run_automation` 未放行 `soft`（CLI `--soft-only` / Web 仅 SOFT 再跑 会报未知动作）
+- 抽出 `watch_lesson_batch` / `select_soft_targets` / `normalize_job_action`
+- 菜单观看与 jobs 共用同一循环（重试、登录失效中止、SOFT/断点语义一致）；删除 `main.run_watch_batch`
+
 ## [0.8.5] - 2026-07-13
 
 ### 运维与补刷

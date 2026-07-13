@@ -191,6 +191,247 @@ def reconcile_progress_with_platform(
     return {"added": added, "removed": removed, "soft_promoted": soft_promoted}
 
 
+def select_soft_targets(pending: list, soft: SoftStore, classroom_id: str) -> list:
+    """pending ∩ soft.json（本课仍待平台确认的节）。"""
+    soft_ids = {s.lesson_id for s in soft.for_classroom(str(classroom_id))}
+    return [it for it in pending if it.lesson_id in soft_ids]
+
+
+def normalize_job_action(action: str) -> tuple[str, str | None]:
+    """返回 (归一化动作, 强制 attend_filter 或 None)。
+
+    合法动作: list | once | all | selected | soft
+    别名: soft_only / retry_soft → soft；*_absent → filter=absent
+    """
+    action = (action or "list").strip().lower()
+    if action in ("soft_only", "retry_soft"):
+        action = "soft"
+    force_af: str | None = None
+    if action.endswith("_absent"):
+        force_af = "absent"
+        action = action[: -len("_absent")] or "list"
+    allowed = ("list", "once", "all", "selected", "soft")
+    if action not in allowed:
+        raise ValueError(f"未知动作: {action}")
+    return action, force_af
+
+
+def watch_lesson_batch(
+    page,
+    session: BrowserSession,
+    *,
+    classroom_id: str,
+    origin: str,
+    targets: list,
+    rate: float,
+    complete_ratio: float,
+    max_watch: int,
+    progress: ProgressStore,
+    failed: FailedStore,
+    soft: SoftStore,
+    data_dir: Path,
+    pause_lo: float = 2.0,
+    pause_hi: float = 6.0,
+    confirm_grace_sec: int = 120,
+    soft_boost: float = 0.10,
+    require_platform: bool = True,
+    retry_per_lesson: int = 1,
+    shot_on_err: bool = True,
+    log: LogFn | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    duration_map: dict[str, float] | None = None,
+    update_state: bool = False,
+) -> dict[str, Any]:
+    """共享观看循环（菜单 / run_automation 共用）。
+
+    返回 {done, fail, soft_done, cancelled}。
+    仅 platform_confirmed 才 mark_done；本地达标未确认记 soft。
+    """
+    log = log or print
+    cancel_fn = should_cancel or (lambda: False)
+    done_count = 0
+    fail_count = 0
+    soft_count = 0
+    cancelled = False
+    if not targets:
+        return {
+            "done": 0,
+            "fail": 0,
+            "soft_done": 0,
+            "cancelled": False,
+        }
+
+    dmap = duration_map or {}
+    remain_content = [
+        float(dmap.get(it.lesson_id, _DEFAULT_LESSON_SEC)) * complete_ratio
+        for it in targets
+    ]
+    cid = str(classroom_id)
+    attempts_max = 1 + max(0, int(retry_per_lesson))
+
+    for idx, item in enumerate(targets, 1):
+        if cancel_fn():
+            log("[job] 用户取消，停止后续课程")
+            cancelled = True
+            break
+
+        if not is_logged_in(page):
+            log("[job] 登录态失效，请使用有界面模式重新登录")
+            if shot_on_err:
+                session.screenshot(data_dir / "session_expired.png")
+            fail_count += 1
+            break
+
+        log("-" * 40)
+        log(f"[job] ({idx}/{len(targets)}) {item.title}")
+        if update_state:
+            STATE.set_progress(
+                {
+                    "title": item.title,
+                    "pct": 0.0,
+                    "phase": "opening",
+                    "index": idx,
+                    "total": len(targets),
+                }
+            )
+            STATE.batch = {
+                **STATE.batch,
+                "index": idx,
+                "total": len(targets),
+                "remaining": len(targets) - idx + 1,
+                "current_title": item.title,
+            }
+
+        def _on_prog(
+            info: dict[str, Any],
+            _idx=idx,
+            _n=len(targets),
+            _remain=remain_content,
+        ) -> None:
+            if not update_state:
+                return
+            info = dict(info)
+            info["index"] = _idx
+            info["total"] = _n
+            STATE.set_progress(info)
+            eta_sec = int(info.get("eta_sec") or 0)
+            rest_content = sum(_remain[_idx:])
+            rest_wall = rest_content / max(rate, 0.5)
+            with STATE._lock:
+                STATE.batch = {
+                    **STATE.batch,
+                    "index": _idx,
+                    "total": _n,
+                    "remaining": max(0, _n - _idx)
+                    + (1 if info.get("phase") in ("playing", "grace") else 0),
+                    "section_eta_sec": eta_sec,
+                    "batch_eta_sec": int(eta_sec + rest_wall),
+                    "batch_eta_text": fmt_eta(eta_sec + rest_wall),
+                }
+
+        result: ReplayResult | None = None
+        for attempt in range(1, attempts_max + 1):
+            if cancel_fn():
+                break
+            if attempt > 1:
+                log(f"[job] 重试本节 ({attempt}/{attempts_max})...")
+                page.wait_for_timeout(1500)
+            result = watch_replay(
+                page,
+                classroom_id=classroom_id,
+                lesson_id=item.lesson_id,
+                origin=origin,
+                rate=rate,
+                complete_ratio=complete_ratio,
+                max_watch_sec=max_watch,
+                log=log,
+                on_progress=_on_prog if update_state else None,
+                title=item.title,
+                should_cancel=cancel_fn,
+                confirm_grace_sec=confirm_grace_sec,
+                soft_boost=soft_boost,
+            )
+            if result.cancelled or result.platform_confirmed or result.ok:
+                break
+        assert result is not None
+
+        pkey = progress_key(cid, item.lesson_id)
+
+        if result.cancelled:
+            log("[job] 本节已取消")
+            cancelled = True
+            break
+
+        if result.platform_confirmed:
+            progress.mark_done(
+                pkey,
+                item.title,
+                classroom_id=cid,
+                lesson_id=item.lesson_id,
+            )
+            soft.remove(cid, item.lesson_id)
+            done_count += 1
+            session.save_state()
+            log("[job] [OK] 平台已确认，已写入断点")
+        elif result.ok:
+            soft_count += 1
+            session.save_state()
+            if require_platform:
+                soft.add(
+                    classroom_id=cid,
+                    lesson_id=item.lesson_id,
+                    title=item.title,
+                    local_ratio=result.local_ratio,
+                )
+                log(
+                    f"[job] [SOFT] 本地 {result.local_ratio*100:.1f}% "
+                    "平台未确认 — 未写断点，已记 soft 待对账"
+                )
+            else:
+                progress.mark_done(
+                    pkey,
+                    item.title,
+                    classroom_id=cid,
+                    lesson_id=item.lesson_id,
+                )
+                done_count += 1
+                soft_count -= 1
+                log("[job] [OK] 本地达标已写断点（require_platform_confirm=false）")
+        else:
+            fail_count += 1
+            failed.add(pkey, item.title, result.reason or "watch_replay failed")
+            if shot_on_err:
+                session.screenshot(data_dir / f"fail_replay_{item.lesson_id}.png")
+            log(f"[job] [FAIL] 本节失败 ({result.reason})")
+
+        if idx - 1 < len(remain_content):
+            remain_content[idx - 1] = 0.0
+
+        if update_state:
+            STATE.done = done_count
+            STATE.fail = fail_count
+            STATE.soft_done = soft_count
+
+        if idx < len(targets) and not cancel_fn():
+            delay = random.uniform(pause_lo, pause_hi)
+            log(f"[job] 休息 {delay:.1f}s")
+            end_sleep = time.time() + delay
+            while time.time() < end_sleep:
+                if cancel_fn():
+                    cancelled = True
+                    break
+                time.sleep(0.3)
+            if cancelled:
+                break
+
+    return {
+        "done": done_count,
+        "fail": fail_count,
+        "soft_done": soft_count,
+        "cancelled": cancelled or cancel_fn(),
+    }
+
+
 def run_automation(
     *,
     root: Path,
@@ -200,25 +441,14 @@ def run_automation(
     attend_filter: str | None = None,
     lesson_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    """同步执行。action: list | once | all | selected。"""
+    """同步执行。action: list | once | all | selected | soft。"""
     log = log or print
-    action = (action or "list").strip().lower()
-    if action not in (
-        "list",
-        "once",
-        "all",
-        "selected",
-        "all_absent",
-        "list_absent",
-        "once_absent",
-    ):
-        return {"ok": False, "error": f"未知动作: {action}"}
-
-    if action.endswith("_absent"):
-        attend_filter = "absent"
-        action = action.replace("_absent", "") or "list"
-    if action not in ("list", "once", "all", "selected"):
-        return {"ok": False, "error": f"未知动作: {action}"}
+    try:
+        action, force_af = normalize_job_action(action)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    if force_af is not None:
+        attend_filter = force_af
 
     af = normalize_attend_filter(
         attend_filter if attend_filter is not None else cfg.get("attend_filter", "all")
@@ -264,6 +494,8 @@ def run_automation(
     fail_count = 0
     soft_count = 0
     pending_preview: list[dict[str, Any]] = []
+    batch_result: dict[str, Any] = {}
+    targets: list = []
     af_label = {"all": "不限签到", "absent": "仅缺勤", "present": "仅已签到"}[af]
 
     log(
@@ -426,9 +658,8 @@ def run_automation(
 
         if action == "once":
             targets = pending[:1]
-        elif action in ("soft", "soft_only", "retry_soft"):
-            # 仅重试 soft.json 中、且仍在待办里的节（平台未确认）
-            targets = [it for it in pending if it.lesson_id in soft_ids]
+        elif action == "soft":
+            targets = select_soft_targets(pending, soft, str(classroom_id))
             if not targets:
                 return {
                     "ok": True,
@@ -465,11 +696,6 @@ def run_automation(
             / max(rate, 0.5)
             for it in targets
         )
-        # 每节剩余内容秒（用于 batch ETA）
-        remain_content = [
-            duration_map.get(it.lesson_id, _DEFAULT_LESSON_SEC) * complete_ratio
-            for it in targets
-        ]
         log(
             f"[job] 将处理 {len(targets)} 节；估总墙钟约 {fmt_eta(est_wall)} "
             f"(时长API + {complete_ratio*100:.0f}% / {rate}x)"
@@ -483,154 +709,34 @@ def run_automation(
             "complete_ratio": complete_ratio,
         }
 
-        for idx, item in enumerate(targets, 1):
-            if STATE.is_cancel_requested():
-                log("[job] 用户取消，停止后续课程")
-                break
-
-            if not is_logged_in(page):
-                log("[job] 登录态失效，请使用有界面模式重新登录")
-                if shot_on_err:
-                    session.screenshot(data_dir / "session_expired.png")
-                fail_count += 1
-                break
-
-            log("-" * 40)
-            log(f"[job] ({idx}/{len(targets)}) {item.title}")
-            STATE.set_progress(
-                {
-                    "title": item.title,
-                    "pct": 0.0,
-                    "phase": "opening",
-                    "index": idx,
-                    "total": len(targets),
-                }
-            )
-            STATE.batch = {
-                **STATE.batch,
-                "index": idx,
-                "total": len(targets),
-                "remaining": len(targets) - idx + 1,
-                "current_title": item.title,
-            }
-
-            def _on_prog(
-                info: dict[str, Any],
-                _idx=idx,
-                _n=len(targets),
-                _remain=remain_content,
-            ) -> None:
-                info = dict(info)
-                info["index"] = _idx
-                info["total"] = _n
-                STATE.set_progress(info)
-                eta_sec = int(info.get("eta_sec") or 0)
-                rest_content = sum(_remain[_idx:])  # 后面整节
-                rest_wall = rest_content / max(rate, 0.5)
-                with STATE._lock:
-                    STATE.batch = {
-                        **STATE.batch,
-                        "index": _idx,
-                        "total": _n,
-                        "remaining": max(0, _n - _idx)
-                        + (1 if info.get("phase") in ("playing", "grace") else 0),
-                        "section_eta_sec": eta_sec,
-                        "batch_eta_sec": int(eta_sec + rest_wall),
-                        "batch_eta_text": fmt_eta(eta_sec + rest_wall),
-                    }
-
-            result: ReplayResult | None = None
-            attempts = 1 + retry_per_lesson
-            for attempt in range(1, attempts + 1):
-                if STATE.is_cancel_requested():
-                    break
-                if attempt > 1:
-                    log(f"[job] 重试本节 ({attempt}/{attempts})...")
-                    page.wait_for_timeout(1500)
-                result = watch_replay(
-                    page,
-                    classroom_id=classroom_id,
-                    lesson_id=item.lesson_id,
-                    origin=origin,
-                    rate=rate,
-                    complete_ratio=complete_ratio,
-                    max_watch_sec=max_watch,
-                    log=log,
-                    on_progress=_on_prog,
-                    title=item.title,
-                    should_cancel=STATE.is_cancel_requested,
-                    confirm_grace_sec=confirm_grace_sec,
-                    soft_boost=soft_boost,
-                )
-                if result.cancelled or result.platform_confirmed or result.ok:
-                    break
-                # 硬失败才重试
-            assert result is not None
-
-            pkey = progress_key(str(classroom_id), item.lesson_id)
-
-            if result.cancelled:
-                log("[job] 本节已取消")
-                break
-
-            if result.platform_confirmed:
-                progress.mark_done(
-                    pkey,
-                    item.title,
-                    classroom_id=str(classroom_id),
-                    lesson_id=item.lesson_id,
-                )
-                soft.remove(str(classroom_id), item.lesson_id)
-                done_count += 1
-                session.save_state()
-                log("[job] [OK] 平台已确认，已写入断点")
-            elif result.ok:
-                soft_count += 1
-                session.save_state()
-                if require_platform:
-                    soft.add(
-                        classroom_id=str(classroom_id),
-                        lesson_id=item.lesson_id,
-                        title=item.title,
-                        local_ratio=result.local_ratio,
-                    )
-                    log(
-                        f"[job] [SOFT] 本地 {result.local_ratio*100:.1f}% "
-                        "平台未确认 — 未写断点，已记 soft 待对账"
-                    )
-                else:
-                    progress.mark_done(
-                        pkey,
-                        item.title,
-                        classroom_id=str(classroom_id),
-                        lesson_id=item.lesson_id,
-                    )
-                    done_count += 1
-                    soft_count -= 1
-                    log("[job] [OK] 本地达标已写断点（require_platform_confirm=false）")
-            else:
-                fail_count += 1
-                failed.add(pkey, item.title, result.reason or "watch_replay failed")
-                if shot_on_err:
-                    session.screenshot(data_dir / f"fail_replay_{item.lesson_id}.png")
-                log(f"[job] [FAIL] 本节失败 ({result.reason})")
-
-            # 本节目内容已处理，batch 剩余去掉
-            if idx - 1 < len(remain_content):
-                remain_content[idx - 1] = 0.0
-
-            STATE.done = done_count
-            STATE.fail = fail_count
-            STATE.soft_done = soft_count
-
-            if idx < len(targets) and not STATE.is_cancel_requested():
-                delay = random.uniform(pause_lo, pause_hi)
-                log(f"[job] 休息 {delay:.1f}s")
-                end_sleep = time.time() + delay
-                while time.time() < end_sleep:
-                    if STATE.is_cancel_requested():
-                        break
-                    time.sleep(0.3)
+        batch_result = watch_lesson_batch(
+            page,
+            session,
+            classroom_id=str(classroom_id),
+            origin=origin,
+            targets=targets,
+            rate=rate,
+            complete_ratio=complete_ratio,
+            max_watch=max_watch,
+            progress=progress,
+            failed=failed,
+            soft=soft,
+            data_dir=data_dir,
+            pause_lo=pause_lo,
+            pause_hi=pause_hi,
+            confirm_grace_sec=confirm_grace_sec,
+            soft_boost=soft_boost,
+            require_platform=require_platform,
+            retry_per_lesson=retry_per_lesson,
+            shot_on_err=shot_on_err,
+            log=log,
+            should_cancel=STATE.is_cancel_requested,
+            duration_map=duration_map,
+            update_state=True,
+        )
+        done_count = int(batch_result.get("done") or 0)
+        fail_count = int(batch_result.get("fail") or 0)
+        soft_count = int(batch_result.get("soft_done") or 0)
 
         # 结束再对账一次（非播放态，可导航）
         try:
@@ -647,7 +753,7 @@ def run_automation(
 
         session.save_state()
 
-    cancelled = STATE.is_cancel_requested()
+    cancelled = bool(batch_result.get("cancelled")) or STATE.is_cancel_requested()
     msg_parts = [
         f"成功(平台确认) {done_count}",
         f"本地未确认 {soft_count}",
