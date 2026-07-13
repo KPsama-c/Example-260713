@@ -224,8 +224,13 @@ def api_run():
     if action in ("all_absent", "list_absent", "once_absent"):
         attend_filter = "absent"
         action = action.replace("_absent", "")
-    if action not in ("list", "once", "all", "selected"):
-        return jsonify({"ok": False, "message": "action 必须是 list/once/all/selected"}), 400
+    if action in ("soft_only", "retry_soft"):
+        action = "soft"
+    if action not in ("list", "once", "all", "selected", "soft"):
+        return jsonify({
+            "ok": False,
+            "message": "action 必须是 list/once/all/selected/soft",
+        }), 400
 
     # 观看类任务需前端勾选免责（list 仅刷新待办也要求，强化知情）
     if not data.get("accept_risk"):

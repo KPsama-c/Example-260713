@@ -121,6 +121,7 @@ def print_main_menu(cfg: dict[str, Any], rate: float) -> None:
     print("  [6] 切换筛选：不限签到 / 仅缺勤 / 仅已签到")
     print("  [7] 从浏览器当前页识别课堂 ID")
     print("  [8] 配置档（列出 / 切换 / 保存当前 / 删除）")
+    print("  [9] 仅 SOFT 再跑（本地达标未平台确认）")
     print("  [0] 退出")
     print("=" * 56)
 
@@ -145,6 +146,8 @@ def pick_action() -> str:
         return "browser_id"
     if raw in ("8", "p", "profile", "profiles"):
         return "profiles"
+    if raw in ("9", "soft", "soft_only", "retry_soft"):
+        return "soft"
     return raw
 
 

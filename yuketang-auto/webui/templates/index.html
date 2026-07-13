@@ -283,6 +283,7 @@
             <button type="button" class="btn-green" id="btnAll">全部观看</button>
             <button type="button" class="btn-purple" id="btnSelected">观看勾选</button>
             <button type="button" class="btn-purple" id="btnAllAbsent">仅缺勤·全部</button>
+            <button type="button" class="btn-amber" id="btnSoft">仅 SOFT 再跑</button>
             <button type="button" class="btn-danger" id="btnStop" disabled>停止</button>
           </div>
           <div class="actions" style="margin-top:8px">
@@ -436,7 +437,7 @@
     }
 
     function setRunButtons(running) {
-      ["btnList", "btnOnce", "btnAll", "btnAllAbsent", "btnSelected", "btnSelAll", "btnSelNone", "btnProfileSwitch", "btnProfileAdd", "btnProfileDel", "profileSelect"].forEach((id) => {
+      ["btnList", "btnOnce", "btnAll", "btnAllAbsent", "btnSoft", "btnSelected", "btnSelAll", "btnSelNone", "btnProfileSwitch", "btnProfileAdd", "btnProfileDel", "profileSelect"].forEach((id) => {
         if ($(id)) $(id).disabled = !!running;
       });
       $("btnStop").disabled = !running;
@@ -822,6 +823,12 @@
       if (!confirm("仅观看缺勤且未看回放的全部课程？")) return;
       runAction("all", "absent");
     };
+    if ($("btnSoft")) {
+      $("btnSoft").onclick = () => {
+        if (!confirm("仅重试本地达标但平台未确认（SOFT）的课程？")) return;
+        runAction("soft");
+      };
+    }
     $("btnStop").onclick = () => {
       if (!confirm("确定停止当前任务？（本节会尽快结束）")) return;
       stopJob();

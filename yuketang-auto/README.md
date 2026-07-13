@@ -4,7 +4,7 @@
 
 > **免责声明**：[DISCLAIMER.md](./DISCLAIMER.md) · 非官方 · 仅限本人账号 · 风险自负  
 > **范围**：只做观看回放；**不**签到、**不**答题  
-> **版本**：0.8.4
+> **版本**：0.8.5
 
 ---
 
@@ -83,6 +83,8 @@ active_profile: 课A
 ```bash
 python main.py --id 你的classroom_id --list-only --headed
 python main.py --url "https://www.yuketang.cn/v2/web/studentLog/xxx" --once
+python main.py --profile 课A --soft-only
+python main.py --doctor
 python main.py --setup
 python main.py --rate 1.5
 python main.py --list-rates
@@ -91,6 +93,9 @@ python main.py --list-rates
 | 参数 | 含义 |
 |------|------|
 | `--id` / `--url` | 课堂 ID 或学习日志 URL |
+| `--profile` | 激活配置档（name 或 classroom_id） |
+| `--soft-only` | 仅重试 SOFT 节 |
+| `--doctor` | 本机环境自检 |
 | `--list-only` / `--once` / `--max N` | 直接动作（不进菜单） |
 | `--rate` / `--speed` | 倍速 |
 | `--setup` | 仅向导 |

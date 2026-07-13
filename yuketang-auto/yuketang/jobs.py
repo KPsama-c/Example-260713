@@ -426,6 +426,21 @@ def run_automation(
 
         if action == "once":
             targets = pending[:1]
+        elif action in ("soft", "soft_only", "retry_soft"):
+            # 仅重试 soft.json 中、且仍在待办里的节（平台未确认）
+            targets = [it for it in pending if it.lesson_id in soft_ids]
+            if not targets:
+                return {
+                    "ok": True,
+                    "done": 0,
+                    "fail": 0,
+                    "soft_done": 0,
+                    "pending": pending_preview,
+                    "classroom_id": classroom_id,
+                    "message": "无 SOFT 待重试（或已全部转正）",
+                    "finished": True,
+                }
+            log(f"[job] 仅 SOFT 重试：{len(targets)} 节")
         elif action == "selected":
             want = {str(x) for x in (lesson_ids or [])}
             if not want:

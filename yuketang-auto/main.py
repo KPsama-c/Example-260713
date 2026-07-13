@@ -29,7 +29,9 @@ from yuketang.logs import LogsApiError, list_pending_replays, normalize_attend_f
 from yuketang.progress import FailedStore, ProgressStore, SoftStore
 from yuketang.rate import PRESETS, rate_help_text, resolve_playback_rate
 from yuketang.replay import watch_replay
+from yuketang.doctor import format_doctor_report, run_doctor
 from yuketang.settings import (
+    activate_profile,
     apply_classroom_input,
     has_classroom,
     load_settings,
@@ -127,6 +129,22 @@ def parse_args() -> argparse.Namespace:
         "--i-accept-risk",
         action="store_true",
         help="确认已阅读 DISCLAIMER.md",
+    )
+    ap.add_argument(
+        "--profile",
+        default=None,
+        metavar="NAME_OR_ID",
+        help="激活配置档（name 或 classroom_id）后执行",
+    )
+    ap.add_argument(
+        "--soft-only",
+        action="store_true",
+        help="仅重试 SOFT（本地达标未平台确认）的节",
+    )
+    ap.add_argument(
+        "--doctor",
+        action="store_true",
+        help="本机环境自检后退出（不连业务）",
     )
     return ap.parse_args()
 
@@ -291,11 +309,26 @@ def main() -> int:
         for k, v in PRESETS.items():
             print(f"  {k:10s} -> {v}x")
         return 0
+    if args.doctor:
+        report = run_doctor(ROOT)
+        print(format_doctor_report(report))
+        return 0 if report.get("ok") else 2
     if args.i_accept_risk:
         print("[main] 已确认接受免责声明")
 
     cfg_path = Path(args.config)
     cfg = load_settings(cfg_path)
+
+    # 先切配置档，再允许 --id/--url 覆盖
+    if args.profile:
+        if activate_profile(cfg, str(args.profile)):
+            print(f"[main] 已激活配置档: {cfg.get('active_profile')} "
+                  f"(classroom={cfg.get('classroom_id')})")
+            if not args.no_save:
+                save_settings(cfg_path, cfg)
+        else:
+            print(f"[!] 未找到配置档: {args.profile}")
+            return 2
 
     # CLI 覆盖课堂
     if args.url:
@@ -339,6 +372,7 @@ def main() -> int:
     direct = bool(
         args.list_only
         or args.once
+        or args.soft_only
         or (args.max is not None)
         or args.no_menu
         or not is_tty()
@@ -399,6 +433,8 @@ def main() -> int:
     if direct:
         if args.list_only:
             action = "list"
+        elif args.soft_only:
+            action = "soft"
         elif args.once or max_videos == 1:
             action = "once"
         else:
@@ -521,7 +557,7 @@ def main() -> int:
                 action = "all"
                 force_af = "absent"
 
-            if action not in ("list", "once", "all"):
+            if action not in ("list", "once", "all", "soft"):
                 print("  无效选项，请重新选择。")
                 continue
 
@@ -539,6 +575,14 @@ def main() -> int:
                 continue
             if not pending:
                 continue
+
+            if action == "soft":
+                soft_ids = {s.lesson_id for s in soft.for_classroom(str(classroom_id))}
+                pending = [it for it in pending if it.lesson_id in soft_ids]
+                if not pending:
+                    print("[main] 无 SOFT 待重试（或已全部转正）")
+                    continue
+                print(f"[main] 仅 SOFT 再跑：{len(pending)} 节")
 
             limit = 1 if action == "once" else len(pending)
             done, fail, soft_n = run_watch_batch(

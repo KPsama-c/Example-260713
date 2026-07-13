@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.5] - 2026-07-13
+
+### 运维与补刷
+- 动作 `soft`：仅重试 soft.json 中仍待办的节（Web「仅 SOFT 再跑」/ 菜单 [9] / `--soft-only`）
+- CLI `--profile NAME_OR_ID` 激活配置档
+- CLI `--doctor` 本机环境自检（Python/依赖/Chromium/gitignore）
+
 ## [0.8.4] - 2026-07-13
 
 ### CLI / 移动端
