@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.7] - 2026-07-13
+
+### Web 可见性
+- `GET /api/doctor`：本机环境自检（与 CLI `--doctor` 同源）
+- `GET /api/soft`：SOFT 列表；`POST /api/soft/clear` 清除本课/全部
+- 控制台：SOFT 列表区、环境自检按钮；任务结束自动刷新 SOFT
+
 ## [0.8.6] - 2026-07-13
 
 ### 修复与去重

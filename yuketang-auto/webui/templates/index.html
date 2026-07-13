@@ -289,6 +289,7 @@
           <div class="actions" style="margin-top:8px">
             <button type="button" class="btn-ghost" id="btnClearProg" style="font-size:0.8rem;opacity:.9">清除本地断点</button>
             <button type="button" class="btn-ghost" id="btnClearFail" style="font-size:0.8rem;opacity:.9">清除失败记录</button>
+            <button type="button" class="btn-ghost" id="btnDoctor" style="font-size:0.8rem;opacity:.9">环境自检</button>
           </div>
         </form>
       </section>
@@ -330,6 +331,15 @@
           </span>
         </div>
         <ul id="pending"></ul>
+
+        <div style="font-size:0.84rem;color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <span>SOFT 待确认（本地达标未写断点）</span>
+          <span style="display:flex;gap:8px">
+            <button type="button" class="btn-ghost" id="btnSoftRefresh" style="font-size:0.72rem;padding:3px 8px">刷新</button>
+            <button type="button" class="btn-ghost" id="btnSoftClear" style="font-size:0.72rem;padding:3px 8px">清除本课</button>
+          </span>
+        </div>
+        <ul id="softList" style="font-size:0.8rem;color:var(--muted);max-height:140px;overflow:auto;margin:0 0 10px;padding-left:18px"></ul>
 
         <div style="font-size:0.84rem;color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between;align-items:center">
           <span>最近运行（最多 10 条，无课程标题）</span>
@@ -437,10 +447,65 @@
     }
 
     function setRunButtons(running) {
-      ["btnList", "btnOnce", "btnAll", "btnAllAbsent", "btnSoft", "btnSelected", "btnSelAll", "btnSelNone", "btnProfileSwitch", "btnProfileAdd", "btnProfileDel", "profileSelect"].forEach((id) => {
+      ["btnList", "btnOnce", "btnAll", "btnAllAbsent", "btnSoft", "btnSelected", "btnSelAll", "btnSelNone", "btnProfileSwitch", "btnProfileAdd", "btnProfileDel", "profileSelect", "btnSoftClear", "btnDoctor"].forEach((id) => {
         if ($(id)) $(id).disabled = !!running;
       });
       $("btnStop").disabled = !running;
+    }
+
+    async function loadSoftList() {
+      const el = $("softList");
+      if (!el) return;
+      try {
+        const res = await fetch("/api/soft");
+        const data = await res.json();
+        el.innerHTML = "";
+        const items = data.items || [];
+        if (!items.length) {
+          el.innerHTML = "<li>无 SOFT 记录（或已全部转正）</li>";
+          return;
+        }
+        items.forEach((it) => {
+          const li = document.createElement("li");
+          const ratio = it.local_ratio != null ? `${(Number(it.local_ratio) * 100).toFixed(0)}%` : "?";
+          li.innerHTML =
+            `<span class="tag" style="background:#422006;color:#fbbf24">SOFT</span> ` +
+            `${escapeHtml(it.title || it.lesson_id || "")} · ${ratio}` +
+            (it.at ? ` · ${escapeHtml(String(it.at).slice(0, 19))}` : "");
+          el.appendChild(li);
+        });
+      } catch (e) {
+        el.innerHTML = "<li>加载失败</li>";
+      }
+    }
+
+    async function clearSoftList() {
+      if (!confirm("清除当前课堂的 SOFT 记录？（不清除断点，仅本地待确认列表）")) return;
+      const res = await fetch("/api/soft/clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: false }),
+      });
+      const data = await res.json();
+      if (!data.ok) { toast(data.error || "清除失败"); return; }
+      toast(data.message || "已清除");
+      loadSoftList();
+    }
+
+    async function runDoctor() {
+      try {
+        const res = await fetch("/api/doctor");
+        const data = await res.json();
+        const checks = data.checks || [];
+        const lines = [
+          "[doctor] " + (data.ok ? "通过" : "有问题"),
+          ...checks.map((c) => `  [${c.ok ? "OK" : "!!"}] ${c.name}: ${c.detail}`),
+        ];
+        appendLogs(lines);
+        toast(data.ok ? "环境自检通过" : "环境自检有问题，见日志");
+      } catch (e) {
+        toast("自检请求失败");
+      }
     }
 
     async function loadHistory() {
@@ -701,6 +766,7 @@
           }
         } catch (e) { /* ignore */ }
         loadHistory();
+        loadSoftList();
       }
 
       // 保留勾选状态
@@ -799,6 +865,9 @@
     if ($("btnProfileAdd")) $("btnProfileAdd").onclick = () => addCurrentProfile();
     if ($("btnProfileDel")) $("btnProfileDel").onclick = () => deleteProfile();
     if ($("btnHistRefresh")) $("btnHistRefresh").onclick = () => loadHistory();
+    if ($("btnSoftRefresh")) $("btnSoftRefresh").onclick = () => loadSoftList();
+    if ($("btnSoftClear")) $("btnSoftClear").onclick = () => clearSoftList();
+    if ($("btnDoctor")) $("btnDoctor").onclick = () => runDoctor();
     if ($("btnLogClear")) $("btnLogClear").onclick = () => clearLogDisplay();
     $("btnList").onclick = () => runAction("list");
     $("btnOnce").onclick = () => runAction("once");
@@ -875,6 +944,7 @@
     })();
 
     loadHistory();
+    loadSoftList();
     pollStatus();
     setInterval(pollStatus, 1000);
   </script>

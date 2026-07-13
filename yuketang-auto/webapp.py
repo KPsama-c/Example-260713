@@ -24,14 +24,16 @@ from flask import Flask, jsonify, render_template, request
 from yuketang import __version__
 from yuketang.browser import BrowserSession
 from yuketang.classrooms import fetch_joined_classrooms, rooms_to_dicts
+from yuketang.doctor import run_doctor
+from yuketang.history import load_run_history
 from yuketang.jobs import (
     STATE,
     clear_failed_store,
     clear_progress_store,
     start_job_async,
 )
+from yuketang.progress import SoftStore
 from yuketang.rate import parse_rate_value
-from yuketang.history import load_run_history
 from yuketang.settings import (
     activate_profile,
     apply_classroom_input,
@@ -43,6 +45,7 @@ from yuketang.settings import (
     save_settings,
     upsert_profile,
 )
+from yuketang.util import resolve_path
 
 TEMPLATE_DIR = ROOT / "webui" / "templates"
 CONFIG_PATH = ROOT / "config.yaml"
@@ -184,6 +187,64 @@ def api_profile_delete():
 def api_history():
     items = load_run_history(ROOT)
     return jsonify({"ok": True, "items": items})
+
+
+@app.get("/api/doctor")
+def api_doctor():
+    """本机环境自检（不连雨课堂业务）。"""
+    result = run_doctor(ROOT)
+    return jsonify({"ok": bool(result.get("ok")), **result})
+
+
+@app.get("/api/soft")
+def api_soft_list():
+    """本地达标但平台未确认的课（soft.json）。"""
+    cfg = load_settings(CONFIG_PATH)
+    soft_path = resolve_path(ROOT, cfg.get("soft_file", "data/soft.json"))
+    store = SoftStore(soft_path)
+    want_all = str(request.args.get("all") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    cid = ""
+    if not want_all and has_classroom(cfg):
+        _, cid, _ = resolve_runtime(cfg)
+        cid = str(cid or "")
+    items = store.as_dicts(cid if cid and not want_all else None)
+    return jsonify({
+        "ok": True,
+        "classroom_id": cid or None,
+        "count": len(items),
+        "items": items,
+    })
+
+
+@app.post("/api/soft/clear")
+def api_soft_clear():
+    """清除 soft 记录（不清除断点）。body: {all?: bool} 默认仅当前课堂。"""
+    if STATE.running:
+        return jsonify({"ok": False, "error": "任务运行中，请先停止"}), 409
+    data = request.get_json(silent=True) or {}
+    cfg = load_settings(CONFIG_PATH)
+    soft_path = resolve_path(ROOT, cfg.get("soft_file", "data/soft.json"))
+    store = SoftStore(soft_path)
+    clear_all = bool(data.get("all"))
+    if clear_all:
+        n = store.clear()
+        return jsonify({"ok": True, "cleared": n, "message": f"已清除全部 SOFT {n} 条"})
+    if not has_classroom(cfg):
+        return jsonify({"ok": False, "error": "请先配置课堂，或传 all=true"}), 400
+    _, cid, _ = resolve_runtime(cfg)
+    if not cid:
+        return jsonify({"ok": False, "error": "无法解析 classroom_id"}), 400
+    n = store.clear_classroom(str(cid))
+    return jsonify({
+        "ok": True,
+        "cleared": n,
+        "classroom_id": str(cid),
+        "message": f"已清除本课 SOFT {n} 条",
+    })
 
 
 @app.post("/api/logs/clear")

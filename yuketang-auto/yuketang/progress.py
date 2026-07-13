@@ -264,10 +264,29 @@ class SoftStore:
         cid = str(classroom_id)
         return [x for x in self.items if x.classroom_id == cid]
 
+    def as_dicts(self, classroom_id: str | None = None) -> list[dict[str, Any]]:
+        """序列化 soft 项；classroom_id 为空则返回全部。"""
+        items = (
+            self.for_classroom(classroom_id)
+            if classroom_id
+            else list(self.items)
+        )
+        return [i.to_dict() for i in items]
+
     def clear(self) -> int:
         n = len(self.items)
         self.items = []
         self.save()
+        return n
+
+    def clear_classroom(self, classroom_id: str) -> int:
+        """清除某课堂的 soft 项，返回删除条数。"""
+        cid = str(classroom_id)
+        n0 = len(self.items)
+        self.items = [x for x in self.items if x.classroom_id != cid]
+        n = n0 - len(self.items)
+        if n:
+            self.save()
         return n
 
     def save(self) -> None:
