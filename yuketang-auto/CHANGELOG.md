@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.9] - 2026-07-13
+
+### 结构
+- 轻拆任务核心：`job_state` / `pending_ops` / `watch_batch`；`jobs` 保留 re-export 与 `run_automation`
+- `scripts/smoke_local.py`：本机烟雾（doctor + pytest + 关键 import，不连业务）
+
 ## [0.8.8] - 2026-07-13
 
 ### 统一列表路径

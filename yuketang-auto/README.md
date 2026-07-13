@@ -4,7 +4,7 @@
 
 > **免责声明**：[DISCLAIMER.md](./DISCLAIMER.md) · 非官方 · 仅限本人账号 · 风险自负  
 > **范围**：只做观看回放；**不**签到、**不**答题  
-> **版本**：0.8.8
+> **版本**：0.8.9
 
 ---
 
@@ -158,9 +158,16 @@ Git 忽略同上；分享代码只用 clean zip 或本仓库，勿打包 `data/`
 
 ```bash
 pip install -e ".[dev]"   # 或 pip install pytest ruff
+python scripts/smoke_local.py   # doctor + pytest + 关键 import（不连业务）
 pytest -q
 ruff check yuketang tests webapp.py main.py
 ```
+
+本机回归清单（发布前）：
+1. `python scripts/smoke_local.py` 全绿  
+2. `python main.py --doctor`  
+3. （可选，有登录态）`python main.py --list-only --headed` 确认列表前对账  
+4. 红线：仅平台确认 `mark_done`；不可跳播伪造进度  
 
 GitHub Actions：push / PR 时在 `yuketang-auto/` 下跑 pytest（无私钥、不连真站）。
 
@@ -174,10 +181,14 @@ main.py                 # 终端向导 + CLI
 start_web.bat           # Windows 一键
 webui/templates/        # 网页模板
 yuketang/
-  jobs.py               # 任务编排（Web/CLI 共用）
+  jobs.py               # run_automation + re-export（Web/CLI 入口）
+  job_state.py          # JobState / STATE
+  pending_ops.py        # 对账 / 待办 / soft / 时长
+  watch_batch.py        # 共享观看循环
   settings.py           # 配置 + profiles
   progress.py / replay.py / logs.py
 tests/                  # 不依赖真站的单测
+scripts/smoke_local.py  # 本机烟雾
 scripts/make_clean_zip.py
 config.example.yaml
 DISCLAIMER.md  LICENSE  CHANGELOG.md

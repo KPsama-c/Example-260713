@@ -38,6 +38,7 @@ def main() -> int:
         "webui/templates/*.html",
         "scripts/dump_page.py",
         "scripts/make_clean_zip.py",
+        "scripts/smoke_local.py",
         "tests/*.py",
     ]
 
