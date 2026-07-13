@@ -149,11 +149,19 @@
             <label><input type="checkbox" id="headless" {% if headless %}checked{% endif %} /> 无头模式（首次登录请勿勾选）</label>
           </div>
 
+          <label style="margin-top:14px">观看范围（均只处理「未观看回放」）</label>
+          <div class="checks" style="margin-top:6px">
+            <label><input type="radio" name="attend_filter" value="all" checked /> 全部（无论是否签到）</label>
+            <label><input type="radio" name="attend_filter" value="absent" /> 仅缺勤</label>
+            <label><input type="radio" name="attend_filter" value="present" /> 仅已签到</label>
+          </div>
+
           <div class="actions">
             <button type="button" class="btn-ghost" id="btnSave">保存配置</button>
-            <button type="button" class="btn-primary" id="btnList">刷新待办列表</button>
-            <button type="button" class="btn-amber" id="btnOnce">观看下一节</button>
+            <button type="button" class="btn-primary" id="btnList">刷新待办</button>
+            <button type="button" class="btn-amber" id="btnOnce">下一节</button>
             <button type="button" class="btn-green" id="btnAll">全部观看</button>
+            <button type="button" class="btn-amber" id="btnAllAbsent" style="background:linear-gradient(135deg,#a855f7,#7c3aed)">仅缺勤·全部</button>
           </div>
         </form>
       </section>
@@ -194,6 +202,11 @@
       setTimeout(() => { t.style.display = "none"; }, 2600);
     }
 
+    function selectedFilter() {
+      const el = document.querySelector('input[name="attend_filter"]:checked');
+      return el ? el.value : "all";
+    }
+
     function formPayload() {
       return {
         classroom_id: $("classroom_id").value.trim(),
@@ -201,6 +214,7 @@
         playback_rate: $("playback_rate").value.trim(),
         complete_ratio: parseFloat($("complete_ratio").value || "0.65"),
         headless: $("headless").checked,
+        attend_filter: selectedFilter(),
       };
     }
 
@@ -218,13 +232,14 @@
       return true;
     }
 
-    async function runAction(action) {
+    async function runAction(action, filterOverride) {
       const ok = await saveConfig();
       if (!ok) return;
+      const attend_filter = filterOverride || selectedFilter();
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, attend_filter }),
       });
       const data = await res.json();
       toast(data.message || (data.ok ? "已启动" : "失败"));
@@ -310,9 +325,21 @@
     $("btnList").onclick = () => runAction("list");
     $("btnOnce").onclick = () => runAction("once");
     $("btnAll").onclick = () => {
-      if (!confirm("将连续观看全部待办回放，可能耗时很长。确定？")) return;
+      if (!confirm("将按当前筛选连续观看全部待办回放，可能耗时很长。确定？")) return;
       runAction("all");
     };
+    $("btnAllAbsent").onclick = () => {
+      document.querySelector('input[name="attend_filter"][value="absent"]').checked = true;
+      if (!confirm("仅观看「缺勤且未看回放」的全部课程，确定？")) return;
+      runAction("all", "absent");
+    };
+
+    // 恢复上次筛选
+    (function restoreFilter() {
+      const v = "{{ attend_filter|default('all') }}";
+      const el = document.querySelector(`input[name="attend_filter"][value="${v}"]`);
+      if (el) el.checked = true;
+    })();
 
     pollStatus();
     setInterval(pollStatus, 1500);

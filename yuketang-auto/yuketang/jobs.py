@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 from yuketang.browser import BrowserSession
 from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
 from yuketang.login import ensure_login
-from yuketang.logs import LogsApiError, list_pending_replays
+from yuketang.logs import LogsApiError, list_pending_replays, normalize_attend_filter
 from yuketang.progress import FailedStore, ProgressStore
 from yuketang.rate import resolve_playback_rate
 from yuketang.replay import watch_replay
@@ -79,12 +79,27 @@ def run_automation(
     cfg: dict[str, Any],
     action: str,
     log: LogFn | None = None,
+    attend_filter: str | None = None,
 ) -> dict[str, Any]:
-    """同步执行。action: list | once | all。"""
+    """同步执行。action: list | once | all。
+
+    attend_filter: all(不限签到) | absent(仅缺勤) | present(仅已签到)
+    """
     log = log or print
     action = (action or "list").strip().lower()
+    if action not in ("list", "once", "all", "all_absent", "list_absent", "once_absent"):
+        return {"ok": False, "error": f"未知动作: {action}"}
+
+    # 动作后缀可简写筛选
+    if action.endswith("_absent"):
+        attend_filter = "absent"
+        action = action.replace("_absent", "") or "list"
     if action not in ("list", "once", "all"):
         return {"ok": False, "error": f"未知动作: {action}"}
+
+    af = normalize_attend_filter(
+        attend_filter if attend_filter is not None else cfg.get("attend_filter", "all")
+    )
 
     if not has_classroom(cfg):
         return {"ok": False, "error": "请先填写 classroom_id 或学习日志 URL"}
@@ -116,8 +131,12 @@ def run_automation(
     done_count = 0
     fail_count = 0
     pending_preview: list[dict[str, Any]] = []
+    af_label = {"all": "不限签到", "absent": "仅缺勤", "present": "仅已签到"}[af]
 
-    log(f"[job] action={action} classroom={classroom_id} rate={rate}x headless={headless}")
+    log(
+        f"[job] action={action} filter={af_label} classroom={classroom_id} "
+        f"rate={rate}x headless={headless}"
+    )
 
     with BrowserSession(headless=headless, storage_state=storage) as session:
         page = session.page
@@ -176,6 +195,7 @@ def run_automation(
                 classroom_id,
                 progress_keys=set(progress.completed),
                 origin=origin,
+                attend_filter=af,
                 log=log,
             )
         except LogsApiError as e:
@@ -194,9 +214,10 @@ def run_automation(
             }
             for it in pending
         ]
-        log(f"[job] 待观看 {len(pending)} 节")
+        log(f"[job] 待观看 {len(pending)} 节（{af_label}）")
         for i, it in enumerate(pending, 1):
-            log(f"  {i}. {it.title}")
+            tag = "缺勤" if not it.attend_status else "已签到"
+            log(f"  {i}. [{tag}] {it.title}")
 
         if action == "list" or not pending:
             session.save_state()
@@ -206,7 +227,12 @@ def run_automation(
                 "fail": 0,
                 "pending": pending_preview,
                 "classroom_id": classroom_id,
-                "message": "无待办" if not pending else f"共 {len(pending)} 节待观看",
+                "attend_filter": af,
+                "message": (
+                    "无待办"
+                    if not pending
+                    else f"共 {len(pending)} 节待观看（{af_label}）"
+                ),
             }
 
         limit = 1 if action == "once" else len(pending)
@@ -252,22 +278,39 @@ def run_automation(
     }
 
 
-def start_job_async(*, root: Path, cfg: dict[str, Any], action: str) -> tuple[bool, str]:
+def start_job_async(
+    *,
+    root: Path,
+    cfg: dict[str, Any],
+    action: str,
+    attend_filter: str | None = None,
+) -> tuple[bool, str]:
     """在后台线程启动任务。若已有任务在跑则拒绝。"""
     global _worker
     if STATE.running:
         return False, "已有任务在运行，请等待结束"
 
+    af = normalize_attend_filter(
+        attend_filter if attend_filter is not None else cfg.get("attend_filter", "all")
+    )
+    label = {"all": "不限签到", "absent": "仅缺勤", "present": "仅已签到"}[af]
+
     def _run() -> None:
         STATE.running = True
-        STATE.action = action
-        STATE.message = "运行中…"
+        STATE.action = f"{action}/{af}"
+        STATE.message = f"运行中…（{label}）"
         STATE.ok = None
         STATE.done = 0
         STATE.fail = 0
         STATE.pending_preview = []
         try:
-            result = run_automation(root=root, cfg=cfg, action=action, log=STATE.log)
+            result = run_automation(
+                root=root,
+                cfg=cfg,
+                action=action,
+                attend_filter=af,
+                log=STATE.log,
+            )
             STATE.ok = bool(result.get("ok"))
             STATE.done = int(result.get("done") or 0)
             STATE.fail = int(result.get("fail") or 0)
@@ -285,4 +328,4 @@ def start_job_async(*, root: Path, cfg: dict[str, Any], action: str) -> tuple[bo
 
     _worker = threading.Thread(target=_run, name="yuketang-job", daemon=True)
     _worker.start()
-    return True, "任务已启动"
+    return True, f"任务已启动（{label}）"

@@ -99,12 +99,17 @@ def print_main_menu(cfg: dict[str, Any], rate: float) -> None:
     print(f"  倍速    : {rate}x")
     print(f"  有效线  : {float(cfg.get('complete_ratio', 0.65))*100:.0f}%")
     print(f"  界面    : {'无头' if cfg.get('headless') else '有界面'}")
+    af = str(cfg.get("attend_filter") or "all")
+    af_label = {"all": "不限签到", "absent": "仅缺勤", "present": "仅已签到"}.get(af, af)
+    print(f"  筛选    : {af_label}")
     print("-" * 56)
-    print("  [1] 查看未观看回放列表")
+    print("  [1] 查看待办列表（当前筛选）")
     print("  [2] 观看下一节（1 节）")
-    print("  [3] 连续观看全部待办")
-    print("  [4] 设置（倍速 / 阈值 / 换课 / 界面）")
-    print("  [5] 从浏览器当前页识别课堂 ID")
+    print("  [3] 全部观看（当前筛选 / 不限签到可先选 6）")
+    print("  [4] 仅缺勤 · 全部观看")
+    print("  [5] 设置（倍速 / 阈值 / 换课 / 筛选 / 界面）")
+    print("  [6] 切换筛选：不限签到 / 仅缺勤 / 仅已签到")
+    print("  [7] 从浏览器当前页识别课堂 ID")
     print("  [0] 退出")
     print("=" * 56)
 
@@ -119,11 +124,31 @@ def pick_action() -> str:
         return "once"
     if raw in ("3", "a", "all"):
         return "all"
-    if raw in ("4", "s", "set", "settings"):
+    if raw in ("4", "aa", "absent_all", "缺勤"):
+        return "all_absent"
+    if raw in ("5", "s", "set", "settings"):
         return "settings"
-    if raw in ("5", "b", "browser"):
+    if raw in ("6", "f", "filter"):
+        return "filter"
+    if raw in ("7", "b", "browser"):
         return "browser_id"
     return raw
+
+
+def pick_attend_filter(current: str = "all") -> str:
+    print("  筛选：")
+    print("  [1] 全部未看回放（无论是否签到）")
+    print("  [2] 仅缺勤且未看回放")
+    print("  [3] 仅已签到且未看回放")
+    cur = {"all": "1", "absent": "2", "present": "3"}.get(
+        (current or "all").lower(), "1"
+    )
+    raw = prompt_line("选择筛选", cur).strip()
+    if raw in ("2", "absent", "缺勤"):
+        return "absent"
+    if raw in ("3", "present", "签到"):
+        return "present"
+    return "all"
 
 
 def settings_submenu(cfg: dict[str, Any]) -> dict[str, Any]:
@@ -133,6 +158,7 @@ def settings_submenu(cfg: dict[str, Any]) -> dict[str, Any]:
     print("  [2] 改有效进度比例")
     print("  [3] 换课（URL / ID）")
     print("  [4] 切换 有界面/无头")
+    print("  [5] 观看筛选（全部 / 仅缺勤 / 仅已签到）")
     print("  [0] 返回")
     choice = prompt_line("设置项", "0")
     if choice == "1":
@@ -153,6 +179,9 @@ def settings_submenu(cfg: dict[str, Any]) -> dict[str, Any]:
             "使用有界面浏览器", default=not bool(cfg.get("headless"))
         )
         print(f"  ✓ headless = {cfg['headless']}")
+    elif choice == "5":
+        cfg["attend_filter"] = pick_attend_filter(str(cfg.get("attend_filter") or "all"))
+        print(f"  ✓ attend_filter = {cfg['attend_filter']}")
     return cfg
 
 

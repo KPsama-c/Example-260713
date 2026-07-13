@@ -245,25 +245,56 @@ def fetch_all_activities(
     return all_items
 
 
+def normalize_attend_filter(value: str | None) -> str:
+    """all=不限签到 · absent=仅缺勤 · present=仅已签到。"""
+    v = (value or "all").strip().lower()
+    if v in ("all", "any", "全部", "不限", "无论"):
+        return "all"
+    if v in ("absent", "缺勤", "缺席", "no_attend", "unsigned"):
+        return "absent"
+    if v in ("present", "attended", "已签到", "签到"):
+        return "present"
+    return "all"
+
+
 def list_pending_replays(
     page: Page,
     classroom_id: str,
     *,
     progress_keys: set[str] | None = None,
     origin: str = "https://www.yuketang.cn",
+    attend_filter: str = "all",
     log: Callable[[str], None] = print,
 ) -> list[LessonActivity]:
+    """待观看回放列表。
+
+    attend_filter:
+      - all: 未看回放，无论是否签到
+      - absent: 仅缺勤且未看回放
+      - present: 仅已签到且未看回放
+    """
     progress_keys = progress_keys or set()
+    mode = normalize_attend_filter(attend_filter)
     items = fetch_all_activities(page, classroom_id, origin=origin, log=log)
+
+    def _attend_ok(x: LessonActivity) -> bool:
+        if mode == "absent":
+            return not bool(x.attend_status)
+        if mode == "present":
+            return bool(x.attend_status)
+        return True
+
     pending = [
         x
         for x in items
-        if x.needs_replay and x.key not in progress_keys
+        if x.needs_replay and x.key not in progress_keys and _attend_ok(x)
     ]
     viewed = sum(1 for x in items if x.live_viewed)
+    absent_n = sum(1 for x in items if not x.attend_status)
+    filter_label = {"all": "不限签到", "absent": "仅缺勤", "present": "仅已签到"}[mode]
     log(
-        f"[logs] 活动 {len(items)}，已观看回放 {viewed}，"
-        f"待处理 {len(pending)}（已跳过断点 {len(progress_keys)}）"
+        f"[logs] 活动 {len(items)}，已观看回放 {viewed}，缺勤 {absent_n}，"
+        f"筛选={filter_label}，待处理 {len(pending)}（断点跳过 {len(progress_keys)}）"
     )
     return pending
 

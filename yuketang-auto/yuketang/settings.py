@@ -23,6 +23,7 @@ DEFAULTS: dict[str, Any] = {
     "playback_rate_max": 3.0,
     "headless": False,
     "complete_ratio": 0.65,
+    "attend_filter": "all",  # all | absent | present
     "max_watch_sec": 7200,
     "storage_state": "data/storage_state.json",
     "progress_file": "data/progress.json",
@@ -42,6 +43,7 @@ _SAVE_KEYS = (
     "playback_rate_max",
     "headless",
     "complete_ratio",
+    "attend_filter",
     "max_watch_sec",
     "storage_state",
     "progress_file",

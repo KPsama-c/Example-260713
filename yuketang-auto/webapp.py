@@ -49,6 +49,7 @@ def _public_cfg() -> dict:
         "course_url": cfg.get("course_url") or "",
         "playback_rate": cfg.get("playback_rate", 1.25),
         "complete_ratio": cfg.get("complete_ratio", 0.65),
+        "attend_filter": cfg.get("attend_filter", "all") or "all",
         "headless": bool(cfg.get("headless", False)),
     }
 
@@ -100,6 +101,10 @@ def api_save_settings():
     if "headless" in data:
         cfg["headless"] = bool(data.get("headless"))
 
+    af = str(data.get("attend_filter") or cfg.get("attend_filter") or "all").strip().lower()
+    if af in ("all", "absent", "present"):
+        cfg["attend_filter"] = af
+
     if not has_classroom(cfg):
         return jsonify({"ok": False, "error": "请填写 classroom_id 或有效学习日志 URL"}), 400
 
@@ -111,6 +116,7 @@ def api_save_settings():
         "course_url": primary or cfg.get("course_url"),
         "playback_rate": cfg.get("playback_rate"),
         "complete_ratio": cfg.get("complete_ratio"),
+        "attend_filter": cfg.get("attend_filter", "all"),
         "headless": cfg.get("headless"),
     })
 
@@ -119,6 +125,11 @@ def api_save_settings():
 def api_run():
     data = request.get_json(silent=True) or {}
     action = str(data.get("action") or "list").strip().lower()
+    # 兼容简写
+    attend_filter = data.get("attend_filter")
+    if action in ("all_absent", "list_absent", "once_absent"):
+        attend_filter = "absent"
+        action = action.replace("_absent", "")
     if action not in ("list", "once", "all"):
         return jsonify({"ok": False, "message": "action 必须是 list/once/all"}), 400
 
@@ -126,7 +137,11 @@ def api_run():
     if not has_classroom(cfg):
         return jsonify({"ok": False, "message": "请先保存有效课堂配置"}), 400
 
-    ok, msg = start_job_async(root=ROOT, cfg=cfg, action=action)
+    if attend_filter is None:
+        attend_filter = cfg.get("attend_filter", "all")
+    ok, msg = start_job_async(
+        root=ROOT, cfg=cfg, action=action, attend_filter=str(attend_filter)
+    )
     code = 200 if ok else 409
     return jsonify({"ok": ok, "message": msg}), code
 

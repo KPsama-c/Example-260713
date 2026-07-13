@@ -25,7 +25,7 @@ from yuketang import __version__
 from yuketang.browser import BrowserSession
 from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
 from yuketang.login import ensure_login
-from yuketang.logs import LogsApiError, list_pending_replays
+from yuketang.logs import LogsApiError, list_pending_replays, normalize_attend_filter
 from yuketang.progress import FailedStore, ProgressStore
 from yuketang.rate import PRESETS, rate_help_text, resolve_playback_rate
 from yuketang.replay import watch_replay
@@ -40,6 +40,7 @@ from yuketang.ui import (
     capture_classroom_from_page,
     is_tty,
     pick_action,
+    pick_attend_filter,
     print_main_menu,
     prompt_yes_no,
     settings_submenu,
@@ -100,6 +101,18 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--headed", action="store_true")
     ap.add_argument("--headless", action="store_true")
     ap.add_argument("--list-only", action="store_true", help="只列出未观看回放")
+    ap.add_argument(
+        "--filter",
+        dest="attend_filter",
+        default=None,
+        choices=["all", "absent", "present"],
+        help="筛选: all=不限签到, absent=仅缺勤, present=仅已签到",
+    )
+    ap.add_argument(
+        "--absent-only",
+        action="store_true",
+        help="仅缺勤（等同 --filter absent）",
+    )
     ap.add_argument(
         "--rate",
         "--speed",
@@ -223,7 +236,14 @@ def ensure_resolved_classroom(
     return resolved
 
 
-def fetch_pending(page, classroom_id: str, origin: str, progress: ProgressStore) -> list:
+def fetch_pending(
+    page,
+    classroom_id: str,
+    origin: str,
+    progress: ProgressStore,
+    *,
+    attend_filter: str = "all",
+) -> list:
     try:
         page.goto(
             f"{origin}/v2/web/studentLog/{classroom_id}",
@@ -237,6 +257,7 @@ def fetch_pending(page, classroom_id: str, origin: str, progress: ProgressStore)
         classroom_id,
         progress_keys=set(progress.completed),
         origin=origin,
+        attend_filter=attend_filter,
         log=print,
     )
 
@@ -306,6 +327,11 @@ def main() -> int:
 
     rate = resolve_playback_rate(cli_rate=args.rate, cfg=cfg, log=print)
     cfg["playback_rate"] = rate
+
+    if args.absent_only:
+        cfg["attend_filter"] = "absent"
+    elif args.attend_filter:
+        cfg["attend_filter"] = normalize_attend_filter(args.attend_filter)
 
     course_url, classroom_id, url_candidates = resolve_runtime(cfg)
     if not classroom_id:
@@ -379,8 +405,11 @@ def main() -> int:
             if not fixed:
                 return 2
             classroom_id = fixed
+            af = normalize_attend_filter(cfg.get("attend_filter", "all"))
             try:
-                pending = fetch_pending(page, classroom_id, origin, progress)
+                pending = fetch_pending(
+                    page, classroom_id, origin, progress, attend_filter=af
+                )
             except LogsApiError as e:
                 print(f"[!] {e}")
                 return 2
@@ -485,6 +514,15 @@ def main() -> int:
                 cfg["playback_rate"] = rate
                 continue
 
+            if action == "filter":
+                cfg["attend_filter"] = pick_attend_filter(
+                    str(cfg.get("attend_filter") or "all")
+                )
+                print(f"[main] 筛选 = {cfg['attend_filter']}")
+                if auto_save:
+                    save_settings(cfg_path, cfg)
+                continue
+
             if action == "browser_id":
                 cfg = capture_classroom_from_page(page, cfg, log=print)
                 course_url, classroom_id, url_candidates = resolve_runtime(cfg)
@@ -494,11 +532,24 @@ def main() -> int:
                     save_settings(cfg_path, cfg)
                 continue
 
+            # all_absent: 强制仅缺勤 + 全部观看
+            force_af = None
+            if action == "all_absent":
+                action = "all"
+                force_af = "absent"
+
             if action not in ("list", "once", "all"):
                 print("  无效选项，请重新选择。")
                 continue
 
-            pending = fetch_pending(page, classroom_id, origin, progress)
+            af = force_af or normalize_attend_filter(cfg.get("attend_filter", "all"))
+            try:
+                pending = fetch_pending(
+                    page, classroom_id, origin, progress, attend_filter=af
+                )
+            except LogsApiError as e:
+                print(f"[!] {e}")
+                continue
             print_pending(pending)
 
             if action == "list":
