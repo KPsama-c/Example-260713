@@ -22,7 +22,12 @@ python webapp.py
 ```
 
 在页面填写 `classroom_id` 或学习日志 URL、倍速等 → **保存配置** → **刷新待办 / 观看下一节 / 全部观看**。  
+也可点 **刷新我的班级**，从已登录账号里点选正确班级（避免把 **course_id** 误当 **classroom_id**）。  
 日志与状态会实时刷新。默认只监听本机，请勿暴露公网。
+
+> **常见坑**：地址里若只有 `/logs/5348693` 一段数字，那往往是 **course_id**。  
+> 真正的 classroom_id 在「我的班级」或完整学习日志 URL 的 `studentLog/` 后面（例如 `27586609`）。  
+> v0.5.1+ 会自动尝试把 course_id 映射为 classroom_id。
 
 ### 方式 B：终端菜单
 
@@ -111,6 +116,7 @@ main.py                 # 终端向导 + 菜单 + CLI
 webui/templates/        # 网页模板
 yuketang/
   jobs.py               # 后台任务（Web/CLI 共用）
+  classrooms.py         # 班级列表 / course_id→classroom_id
   settings.py / ui.py
   logs.py / replay.py / rate.py
 data/                   # 本地隐私数据（勿提交）

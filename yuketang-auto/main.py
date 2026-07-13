@@ -23,8 +23,9 @@ if str(ROOT) not in sys.path:
 
 from yuketang import __version__
 from yuketang.browser import BrowserSession
+from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
 from yuketang.login import ensure_login
-from yuketang.logs import list_pending_replays
+from yuketang.logs import LogsApiError, list_pending_replays
 from yuketang.progress import FailedStore, ProgressStore
 from yuketang.rate import PRESETS, rate_help_text, resolve_playback_rate
 from yuketang.replay import watch_replay
@@ -196,6 +197,32 @@ def run_watch_batch(
     return done_count, fail_count
 
 
+def ensure_resolved_classroom(
+    page,
+    classroom_id: str,
+    *,
+    cfg: dict[str, Any],
+    cfg_path: Path,
+    origin: str,
+    auto_save: bool,
+) -> str | None:
+    """登录后解析/纠正 classroom_id；失败返回 None。"""
+    resolved, _rooms, msg = resolve_joined_classroom(page, str(classroom_id), log=print)
+    if not resolved:
+        print(f"[!] {msg}")
+        return None
+    if resolved != str(classroom_id):
+        print(f"[main] classroom_id: {classroom_id} → {resolved}")
+        cfg["classroom_id"] = resolved
+        cfg["course_url"] = f"{origin.rstrip('/')}/v2/web/studentLog/{resolved}"
+        if auto_save:
+            save_settings(cfg_path, cfg)
+            print(f"[main] 已写回正确 classroom_id -> {cfg_path}")
+    else:
+        print(f"[main] {msg}")
+    return resolved
+
+
 def fetch_pending(page, classroom_id: str, origin: str, progress: ProgressStore) -> list:
     try:
         page.goto(
@@ -341,7 +368,22 @@ def main() -> int:
                 return 1
             session.save_state()
             origin = origin_of(page.url or course_url)
-            pending = fetch_pending(page, classroom_id, origin, progress)
+            fixed = ensure_resolved_classroom(
+                page,
+                classroom_id,
+                cfg=cfg,
+                cfg_path=cfg_path,
+                origin=origin,
+                auto_save=auto_save,
+            )
+            if not fixed:
+                return 2
+            classroom_id = fixed
+            try:
+                pending = fetch_pending(page, classroom_id, origin, progress)
+            except LogsApiError as e:
+                print(f"[!] {e}")
+                return 2
             print_pending(pending)
             if action == "list":
                 return 0
@@ -388,6 +430,16 @@ def main() -> int:
         session.save_state()
         origin = origin_of(page.url or course_url)
         print(f"[main] 已登录，origin={origin}")
+        fixed = ensure_resolved_classroom(
+            page,
+            classroom_id,
+            cfg=cfg,
+            cfg_path=cfg_path,
+            origin=origin,
+            auto_save=auto_save,
+        )
+        if fixed:
+            classroom_id = fixed
 
         total_done = 0
         total_fail = 0
@@ -401,6 +453,19 @@ def main() -> int:
                 print("[!] classroom_id 无效，请在设置中重新填写")
                 cfg = settings_submenu(cfg)
                 continue
+            # 设置改过 ID 时再解析一次
+            fixed = ensure_resolved_classroom(
+                page,
+                classroom_id,
+                cfg=cfg,
+                cfg_path=cfg_path,
+                origin=origin,
+                auto_save=auto_save,
+            )
+            if not fixed:
+                cfg = settings_submenu(cfg)
+                continue
+            classroom_id = fixed
 
             print_main_menu(cfg, rate)
             action = pick_action()

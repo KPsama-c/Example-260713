@@ -122,11 +122,17 @@
       <section class="card">
         <h2><span class="dot"></span> 提交配置</h2>
         <form id="cfgForm" onsubmit="return false;">
-          <label for="classroom_id">classroom_id（数字）</label>
-          <input id="classroom_id" name="classroom_id" type="text" placeholder="例如 1234567890" value="{{ classroom_id }}" />
+          <label for="classroom_id">classroom_id（数字，不是 course_id）</label>
+          <input id="classroom_id" name="classroom_id" type="text" placeholder="例如 27586609" value="{{ classroom_id }}" />
 
           <label for="course_url">或粘贴学习日志 URL</label>
           <input id="course_url" name="course_url" type="text" placeholder="https://www.yuketang.cn/v2/web/studentLog/..." value="{{ course_url }}" />
+
+          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button type="button" class="btn-ghost" id="btnRooms">刷新我的班级</button>
+            <span style="font-size:0.8rem;color:var(--muted)">登录后可一键填入正确 classroom_id</span>
+          </div>
+          <ul id="roomList" style="list-style:none;padding:0;margin:10px 0 0;max-height:140px;overflow:auto;font-size:0.85rem"></ul>
 
           <div class="row">
             <div>
@@ -272,7 +278,35 @@
       } catch (e) { /* ignore */ }
     }
 
+    async function loadRooms() {
+      toast("正在拉取班级…");
+      const res = await fetch("/api/classrooms");
+      const data = await res.json();
+      const list = $("roomList");
+      list.innerHTML = "";
+      if (!data.ok) {
+        toast(data.error || "拉取失败");
+        return;
+      }
+      (data.classrooms || []).forEach((r) => {
+        const li = document.createElement("li");
+        li.style.cssText = "padding:8px 0;border-bottom:1px dashed #243044;cursor:pointer;color:var(--text)";
+        li.innerHTML = `<strong>${escapeHtml(r.label || r.name || "")}</strong>`
+          + `<div style="color:var(--muted);font-size:0.78rem">classroom_id=${escapeHtml(r.classroom_id)}`
+          + (r.course_id ? ` · course_id=${escapeHtml(r.course_id)}` : "")
+          + `</div>`;
+        li.onclick = () => {
+          $("classroom_id").value = r.classroom_id;
+          $("course_url").value = `https://www.yuketang.cn/v2/web/studentLog/${r.classroom_id}`;
+          toast(`已填入 ${r.classroom_id}`);
+        };
+        list.appendChild(li);
+      });
+      toast(data.message || "完成");
+    }
+
     $("btnSave").onclick = () => saveConfig();
+    $("btnRooms").onclick = () => loadRooms();
     $("btnList").onclick = () => runAction("list");
     $("btnOnce").onclick = () => runAction("once");
     $("btnAll").onclick = () => {

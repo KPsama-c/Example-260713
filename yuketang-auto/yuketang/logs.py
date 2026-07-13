@@ -8,6 +8,10 @@ from typing import Any, Callable
 from playwright.sync_api import Page
 
 
+class LogsApiError(RuntimeError):
+    """学习日志 API 业务/网络错误（含可读提示）。"""
+
+
 @dataclass
 class LessonActivity:
     activity_id: str
@@ -171,9 +175,23 @@ def fetch_learn_logs_page(
         return captured["data"]
 
     detail = ""
+    body_text = ""
     if isinstance(raw, dict):
-        detail = f" fetch_status={raw.get('status')} body={str(raw.get('text'))[:200]!r}"
-    raise RuntimeError(f"logs API 失败: {url}{detail} request_status={getattr(resp, 'status', '?')}")
+        body_text = str(raw.get("text") or "")
+        detail = f" fetch_status={raw.get('status')} body={body_text[:200]!r}"
+
+    # 常见业务错误：把 course_id 当成 classroom_id
+    if "403002" in body_text or "用户未加入班级" in body_text:
+        raise LogsApiError(
+            f"学习日志拒绝访问 classroom_id={classroom_id}（用户未加入班级 / 403002）。\n"
+            "  常见原因：把 course_id 填成了 classroom_id。\n"
+            "  处理：在网页控制台点「刷新我的班级」选择正确班级；\n"
+            "  或打开学习日志页，地址栏 studentLog/ 后面才是 classroom_id。\n"
+            f"  技术细节: {url}{detail}"
+        )
+    raise LogsApiError(
+        f"logs API 失败: {url}{detail} request_status={getattr(resp, 'status', '?')}"
+    )
 
 
 def fetch_all_activities(

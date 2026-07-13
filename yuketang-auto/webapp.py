@@ -22,6 +22,8 @@ if str(ROOT) not in sys.path:
 from flask import Flask, jsonify, render_template, request
 
 from yuketang import __version__
+from yuketang.browser import BrowserSession
+from yuketang.classrooms import fetch_joined_classrooms, rooms_to_dicts
 from yuketang.jobs import STATE, start_job_async
 from yuketang.rate import parse_rate_value
 from yuketang.settings import (
@@ -132,6 +134,44 @@ def api_run():
 @app.get("/api/status")
 def api_status():
     return jsonify(STATE.snapshot())
+
+
+@app.get("/api/classrooms")
+def api_classrooms():
+    """用已保存登录态拉取「我的班级」列表（短暂打开浏览器）。"""
+    if STATE.running:
+        return jsonify({"ok": False, "error": "任务运行中，请稍后再试"}), 409
+
+    cfg = load_settings(CONFIG_PATH)
+    storage = ROOT / str(cfg.get("storage_state") or "data/storage_state.json")
+    if not storage.is_absolute():
+        storage = (ROOT / storage).resolve()
+    if not storage.exists():
+        return jsonify({
+            "ok": False,
+            "error": "尚未登录。请先填写任意课堂并「刷新待办」完成一次登录。",
+            "classrooms": [],
+        }), 400
+
+    try:
+        with BrowserSession(headless=True, storage_state=storage) as session:
+            page = session.page
+            assert page is not None
+            page.goto(
+                "https://www.yuketang.cn/v2/web/index",
+                wait_until="domcontentloaded",
+            )
+            page.wait_for_timeout(1500)
+            rooms = fetch_joined_classrooms(page, log=print)
+            session.save_state()
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"拉取班级失败: {e}", "classrooms": []}), 500
+
+    return jsonify({
+        "ok": True,
+        "classrooms": rooms_to_dicts(rooms),
+        "message": f"共 {len(rooms)} 个班级",
+    })
 
 
 def main() -> int:

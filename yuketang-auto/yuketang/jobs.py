@@ -13,12 +13,13 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from yuketang.browser import BrowserSession
+from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
 from yuketang.login import ensure_login
-from yuketang.logs import list_pending_replays
+from yuketang.logs import LogsApiError, list_pending_replays
 from yuketang.progress import FailedStore, ProgressStore
 from yuketang.rate import resolve_playback_rate
 from yuketang.replay import watch_replay
-from yuketang.settings import has_classroom, resolve_runtime
+from yuketang.settings import has_classroom, resolve_runtime, save_settings
 
 LogFn = Callable[[str], None]
 
@@ -135,6 +136,31 @@ def run_automation(
 
         session.save_state()
         origin = _origin_of(page.url or course_url)
+
+        # course_id → classroom_id 自动纠正（常见误填）
+        resolved, _rooms, resolve_msg = resolve_joined_classroom(
+            page, str(classroom_id), log=log
+        )
+        if not resolved:
+            return {
+                "ok": False,
+                "error": resolve_msg or "无法解析 classroom_id",
+                "done": 0,
+                "fail": 0,
+            }
+        if resolved != str(classroom_id):
+            log(f"[job] classroom_id: {classroom_id} → {resolved}")
+            classroom_id = resolved
+            cfg["classroom_id"] = resolved
+            cfg["course_url"] = f"{origin}/v2/web/studentLog/{resolved}"
+            try:
+                save_settings(root / "config.yaml", cfg)
+                log("[job] 已写回正确 classroom_id 到 config.yaml")
+            except Exception as e:
+                log(f"[job] 写回配置失败（可忽略）: {e}")
+        else:
+            log(f"[job] {resolve_msg}")
+
         try:
             page.goto(
                 f"{origin}/v2/web/studentLog/{classroom_id}",
@@ -144,13 +170,22 @@ def run_automation(
         except Exception as e:
             log(f"[job] 打开日志页警告: {e}")
 
-        pending = list_pending_replays(
-            page,
-            classroom_id,
-            progress_keys=set(progress.completed),
-            origin=origin,
-            log=log,
-        )
+        try:
+            pending = list_pending_replays(
+                page,
+                classroom_id,
+                progress_keys=set(progress.completed),
+                origin=origin,
+                log=log,
+            )
+        except LogsApiError as e:
+            return {
+                "ok": False,
+                "error": str(e),
+                "done": 0,
+                "fail": 0,
+                "classroom_id": classroom_id,
+            }
         pending_preview = [
             {
                 "title": it.title,
@@ -170,6 +205,7 @@ def run_automation(
                 "done": 0,
                 "fail": 0,
                 "pending": pending_preview,
+                "classroom_id": classroom_id,
                 "message": "无待办" if not pending else f"共 {len(pending)} 节待观看",
             }
 
@@ -211,6 +247,7 @@ def run_automation(
         "done": done_count,
         "fail": fail_count,
         "pending": pending_preview,
+        "classroom_id": classroom_id,
         "message": f"成功 {done_count}, 失败 {fail_count}",
     }
 
