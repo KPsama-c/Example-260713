@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.2] - 2026-07-13
+
+### 发布打磨
+- README 重组：5 分钟上手 / 红线行为 / 故障矩阵 / 纯净包与安全自检
+- GitHub Actions：`yuketang-auto` 路径下 ruff + pytest（无私钥、不连真站）
+- `start_web.bat`：依赖检查与本机安全提示
+- `make_clean_zip`：加强隐私文件名与占位 ID 检漏
+
 ## [0.8.1] - 2026-07-13
 
 ### 多课堂

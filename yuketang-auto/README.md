@@ -3,11 +3,12 @@
 面向雨课堂「智·汇大讲堂」类直播回放的 **Playwright** 本地助手：找出「未观看回放」，静音倍速播放到有效进度（默认总时长 **65%**）。
 
 > **免责声明**：[DISCLAIMER.md](./DISCLAIMER.md) · 非官方 · 仅限本人账号 · 风险自负  
-> **范围**：只做观看回放；**不**签到、**不**答题
+> **范围**：只做观看回放；**不**签到、**不**答题  
+> **版本**：0.8.2
 
 ---
 
-## 最快上手
+## 5 分钟上手
 
 ```bash
 pip install -r requirements.txt
@@ -21,92 +22,79 @@ python webapp.py
 # 浏览器打开 http://127.0.0.1:8765
 ```
 
-在页面填写 `classroom_id` 或学习日志 URL、倍速等 → 勾选 **免责声明** → **保存** → **刷新待办 / 下一节 / 全部 / 勾选观看**。  
-也可 **刷新我的班级** 点选正确班级（避免把 **course_id** 误当 **classroom_id**）。  
-多门课：保存后会出现在 **配置档** 下拉，可随时切换（断点按课堂隔离）。  
-Windows 也可双击 `start_web.bat`。
+Windows 可双击 `start_web.bat`（缺依赖时会自动 `pip` + 安装 Chromium）。
 
-**观看范围**（均只处理「未观看回放」）：
-- **全部 / 仅缺勤 / 仅已签到**
-- **观看勾选**：只跑待办里勾选的节
+1. 填写 `classroom_id` 或学习日志 URL（或 **刷新我的班级** 点选）  
+2. 勾选 **免责声明** → **保存**（自动写入配置档）  
+3. **刷新待办** / **下一节** / **全部** / **观看勾选**  
 
-日志约每秒增量刷新；播放中有进度条与 **本节/批量 ETA**；可 **停止**。  
-默认只绑本机 `127.0.0.1`，请勿暴露公网。
+多门课：保存后出现在 **配置档** 下拉，可随时切换；断点按 `classroom:lesson` 隔离。  
+默认只绑本机 `127.0.0.1`，**请勿**改成 `0.0.0.0` 暴露公网。
 
-**断点策略（v0.8）**：
-- 默认 **仅平台确认** 才写 `progress.json`
-- 断点键 `classroom_id:lesson_id`，多课不串
-- 达线后 grace + soft_boost 真播；SOFT 记 `data/soft.json` 并对账转正
-- 真实时长 ETA、失败重试、登录检测
-- 播放中不跳学习日志；隐私不进仓/纯净包
-
-> **常见坑**：地址里若只有 `/logs/YOUR_COURSE_ID` 一段数字，那往往是 **course_id**。  
-> 真正的 classroom_id 在「我的班级」或完整学习日志 URL 的 `studentLog/` 后面。  
-> 会自动尝试把 course_id 映射为 classroom_id。
-
-### 方式 B：终端菜单
+### 方式 B：终端
 
 ```bash
 python main.py
+# 或
+python main.py --id 你的classroom_id --list-only --headed
 ```
 
-1. 向导：粘贴 URL 或输入 `classroom_id`  
-2. 自动生成 `config.yaml`  
-3. 菜单：列表 / 下一节 / 全部 / 设置  
+---
 
-### 主菜单
+## 高标准行为（红线）
 
-| 键 | 功能 |
-|----|------|
-| 1 | 查看未观看回放 |
-| 2 | 只看下一节 |
-| 3 | 连续看完全部待办 |
-| 4 | 改倍速、有效线、换课、有无界面 |
-| 5 | 从浏览器当前页识别 classroom_id |
-| 0 | 退出 |
+| 规则 | 说明 |
+|------|------|
+| 仅真实播放 | 不跳播、不伪造观看心跳、不篡改签到/答题 |
+| 仅平台确认写断点 | 默认 `require_platform_confirm`；本地达线后 grace + soft_boost 真播 |
+| 播放中不跳日志页 | 完成检查不 `page.goto` 学习日志 |
+| 仅本机自用 | Cookie / 断点在 `data/`，永不进仓、不进纯净包 |
+
+断点键：`classroom_id:lesson_id`。SOFT 记入 `data/soft.json`，对账后转正。  
+建议倍速 **≤1.5**；过高易导致平台不认、SOFT 增多。
+
+---
+
+## 观看范围与配置档
+
+- **全部 / 仅缺勤 / 仅已签到**（均只处理「未观看回放」）  
+- **观看勾选**：只跑待办里勾中的节  
+- **配置档**（v0.8.1+）：`profiles` + `active_profile`，Web 下拉切换；点选班级即 upsert  
+
+```yaml
+# config.example.yaml 片段
+profiles:
+  - name: 课A
+    classroom_id: "YOUR_CLASSROOM_ID"
+    course_url: "https://www.yuketang.cn/v2/web/studentLog/YOUR_CLASSROOM_ID"
+active_profile: 课A
+```
+
+> **常见坑**：地址里若只有 `/logs/YOUR_COURSE_ID` 一段数字，那往往是 **course_id**。  
+> 真正的 classroom_id 在「我的班级」或 `studentLog/` 后面。
 
 ---
 
 ## 命令行（可选）
 
 ```bash
-# 不写 config，直接带 ID
 python main.py --id 你的classroom_id --list-only --headed
-
-# 带 URL 跑一节
 python main.py --url "https://www.yuketang.cn/v2/web/studentLog/xxx" --once
-
-# 只跑向导
 python main.py --setup
-
-# 强制菜单 / 禁止菜单
-python main.py --menu
-python main.py --no-menu --once
-
-# 倍速
 python main.py --rate 1.5
 python main.py --list-rates
 ```
 
 | 参数 | 含义 |
 |------|------|
-| `--id` | classroom_id |
-| `--url` | 学习日志 URL |
+| `--id` / `--url` | 课堂 ID 或学习日志 URL |
 | `--list-only` / `--once` / `--max N` | 直接动作（不进菜单） |
 | `--rate` / `--speed` | 倍速 |
 | `--setup` | 仅向导 |
 | `--menu` / `--no-menu` | 强制/禁止菜单 |
 | `--headed` / `--headless` | 有/无界面 |
 
----
-
-## 如何找到 classroom_id
-
-1. 登录雨课堂 → 该课 **学习日志**  
-2. 地址栏：  
-   - `.../v2/web/studentLog/<classroom_id>`  
-   - 或移动端 `.../logs/<course_id>/<classroom_id>` → **第二段**  
-3. 也可用菜单 **[5]** 打开日志页后自动识别  
+终端与 Web 共用 `yuketang.jobs.run_automation`。
 
 ---
 
@@ -116,40 +104,77 @@ python main.py --list-rates
 |----|------|
 | 倍速 | 1.25（建议 ≤1.5） |
 | 有效进度 | 65% 总时长（本地停播线） |
-| 写断点 | 仅平台确认（`require_platform_confirm`） |
+| 写断点 | 仅平台确认 |
 | 登录态 | `data/storage_state.json` |
 | 断点 | `data/progress.json` |
+| Web | `127.0.0.1:8765` |
 
-高级项见 `config.example.yaml`；日常用菜单即可，一般不必手改 YAML。
+高级项见 `config.example.yaml`（grace、soft_boost、retry、profiles 等）。
+
+---
+
+## 故障矩阵
+
+| 现象 | 处理 |
+|------|------|
+| forbidden / 空列表 | 用错 ID，应使用 **classroom_id**；点「刷新我的班级」 |
+| 进度不涨 | `--rate 1.0` 或页面改倍速；确认有界面首次登录 |
+| 登录超时 | 有界面模式；删除坏掉的 `storage_state` 后重登 |
+| 本地达标但下次仍出现 | 平台未确认（SOFT）；继续播或略提高 `complete_ratio` |
+| 任务中无法切换配置档 | 先 **停止**，再切换 |
+| Windows 控制台乱码 | 用 Web 控制台（推荐） |
+| 依赖缺失 | `pip install -r requirements.txt` 后 `playwright install chromium` |
+
+---
+
+## 纯净包与隐私
+
+```bash
+python scripts/make_clean_zip.py
+# → yuketang-auto-vX.Y.Z-clean.zip
+```
+
+包内**不含**：`config.yaml`、`data/*` Cookie/断点、`storage_state.json`。  
+Git 忽略同上；分享代码只用 clean zip 或本仓库，勿打包 `data/`。
+
+**安全自检**
+
+- [ ] Web 仅 `127.0.0.1`（`webapp.py` 对非本机 host 会告警）  
+- [ ] `.gitignore` 含 `config.yaml`、`data/*`、`storage_state.json`  
+- [ ] clean zip 检漏通过（脚本自动查 config/storage/progress）  
+- [ ] 未把个人课堂 ID 写进对外文档  
+
+---
+
+## 开发与测试
+
+```bash
+pip install -e ".[dev]"   # 或 pip install pytest ruff
+pytest -q
+ruff check yuketang tests webapp.py main.py
+```
+
+GitHub Actions：push / PR 时在 `yuketang-auto/` 下跑 pytest（无私钥、不连真站）。
 
 ---
 
 ## 目录
 
 ```
-webapp.py               # 网页控制台入口（推荐）
-main.py                 # 终端向导 + 菜单 + CLI
+webapp.py               # 网页控制台
+main.py                 # 终端向导 + CLI
+start_web.bat           # Windows 一键
 webui/templates/        # 网页模板
 yuketang/
-  jobs.py               # 后台任务（Web/CLI 共用）
-  classrooms.py         # 班级列表 / course_id→classroom_id
-  settings.py / ui.py
-  logs.py / replay.py / rate.py
-data/                   # 本地隐私数据（勿提交）
-DISCLAIMER.md
+  jobs.py               # 任务编排（Web/CLI 共用）
+  settings.py           # 配置 + profiles
+  progress.py / replay.py / logs.py
+tests/                  # 不依赖真站的单测
+scripts/make_clean_zip.py
+config.example.yaml
+DISCLAIMER.md  LICENSE  CHANGELOG.md
+data/                   # 本地隐私（勿提交）
 ```
-
----
-
-## 故障排查
-
-| 现象 | 处理 |
-|------|------|
-| forbidden | 用错 ID，应使用 classroom_id |
-| 进度不涨 | `--rate 1.0` 或菜单改倍速 |
-| 登录超时 | 有界面模式，加大等待；或重新 `python main.py` |
-| 本地达标但下次仍出现 | 平台未确认，属正常；继续播或提高 `complete_ratio` |
-| Windows 控制台乱码/崩溃 | v0.5.4+ 已用 ASCII 进度条；请用 Web 控制台 |
 
 ---
 

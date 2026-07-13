@@ -1,0 +1,33 @@
+# yuketang-auto：无私钥、不连真站
+name: yuketang-auto CI
+
+on:
+  push:
+    paths:
+      - "yuketang-auto/**"
+      - ".github/workflows/yuketang-auto-ci.yml"
+  pull_request:
+    paths:
+      - "yuketang-auto/**"
+      - ".github/workflows/yuketang-auto-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: yuketang-auto
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+          pip install pytest ruff
+      - name: Ruff
+        run: ruff check yuketang tests webapp.py main.py
+      - name: Pytest
+        run: pytest -q

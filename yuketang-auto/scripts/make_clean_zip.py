@@ -87,19 +87,39 @@ def main() -> int:
                 if f.is_file():
                     zf.write(f, f.relative_to(base.parent).as_posix())
 
-        # 检漏
+        # 检漏：隐私文件名 + 正文敏感片段
         with zipfile.ZipFile(out) as zf:
             names = zf.namelist()
-        bad = [
-            n
-            for n in names
-            if n.endswith("config.yaml")
-            or "storage_state.json" in n
-            or "progress.json" in n
-            or "__pycache__" in n
-        ]
-        if bad:
-            print("LEAK:", bad)
+            bad_names = [
+                n
+                for n in names
+                if n.endswith("config.yaml")
+                or "storage_state.json" in n
+                or re.search(r"(^|/)progress\.json$", n)
+                or re.search(r"(^|/)(soft|failed)\.json$", n)
+                or "__pycache__" in n
+                or ".pytest_cache" in n
+            ]
+            bad_content: list[str] = []
+            for n in names:
+                # 仅检用户可见文档与模板中的真实 ID 残留（打包脚本自身含脱敏字面量）
+                if not n.endswith((".md", ".html", ".yaml", ".yml", ".json")):
+                    continue
+                if n.endswith("config.example.yaml"):
+                    continue
+                raw = zf.read(n)
+                try:
+                    text = raw.decode("utf-8")
+                except UnicodeDecodeError:
+                    continue
+                base = n.rsplit("/", 1)[-1]
+                if base in ("storage_state.json", "progress.json", "soft.json", "failed.json"):
+                    bad_content.append(n)
+                if re.search(r"\b27586609\b", text) or re.search(r"\b5348693\b", text):
+                    bad_content.append(f"{n}:real_id")
+        if bad_names or bad_content:
+            print("LEAK names:", bad_names)
+            print("LEAK content:", bad_content)
             return 1
         print(f"OK {out} ({out.stat().st_size} bytes, {len(names)} entries)")
     return 0
