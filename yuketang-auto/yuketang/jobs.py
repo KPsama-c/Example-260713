@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import sys
 import threading
 import time
 import traceback
@@ -54,7 +55,12 @@ class JobState:
     def log(self, line: str) -> None:
         with self._lock:
             self.logs.append(line)
-        print(line)
+        # Windows 默认 GBK 控制台对部分 Unicode 会炸；Web 仍保留原文
+        try:
+            print(line)
+        except UnicodeEncodeError:
+            enc = getattr(sys.stdout, "encoding", None) or "gbk"
+            print(str(line).encode(enc, errors="replace").decode(enc, errors="replace"))
 
     def set_progress(self, info: dict[str, Any]) -> None:
         with self._lock:
@@ -289,13 +295,13 @@ def run_automation(
                 progress.mark_done(item.key, item.title)
                 done_count += 1
                 session.save_state()
-                log("[job] ✓ 本节完成")
+                log("[job] [OK] 本节完成")
             else:
                 fail_count += 1
                 failed.add(item.key, item.title, "watch_replay failed")
                 if shot_on_err:
                     session.screenshot(data_dir / f"fail_replay_{item.lesson_id}.png")
-                log("[job] ✗ 本节失败")
+                log("[job] [FAIL] 本节失败")
             if idx < len(targets):
                 delay = random.uniform(pause_lo, pause_hi)
                 log(f"[job] 休息 {delay:.1f}s")

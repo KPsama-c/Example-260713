@@ -131,7 +131,7 @@ _SEGMENT_END_RATIO = 0.97
 
 def _fmt_eta(sec: float) -> str:
     if sec <= 0 or sec > 24 * 3600:
-        return "—"
+        return "-"
     m, s = divmod(int(sec), 60)
     h, m = divmod(m, 60)
     if h:
@@ -142,9 +142,11 @@ def _fmt_eta(sec: float) -> str:
 
 
 def _progress_bar(pct: float, width: int = 18) -> str:
+    """ASCII only; Windows console GBK cannot print block glyphs."""
     pct = max(0.0, min(100.0, pct))
     filled = int(round(width * pct / 100.0))
-    return "█" * filled + "░" * (width - filled)
+    filled = max(0, min(width, filled))
+    return "#" * filled + "-" * (width - filled)
 
 
 def watch_replay(
@@ -259,13 +261,13 @@ def watch_replay(
             last_basic_check = now
             fr = basic_info_finish_replay(page, lesson_id, origin=origin)
             if fr is True:
-                log("[replay] basic-info.finishReplay=true ✓")
+                log("[replay] basic-info.finishReplay=true [OK]")
                 return True
         if now - last_list_check > 100:
             last_list_check = now
             lv = is_live_viewed(page, classroom_id, lesson_id, origin=origin)
             if lv is True:
-                log("[replay] logs.live_viewed=true ✓")
+                log("[replay] logs.live_viewed=true [OK]")
                 return True
 
         if now - last_body_check > 18:
@@ -273,7 +275,7 @@ def watch_replay(
             try:
                 body = page.locator("body").inner_text(timeout=1_200)
                 if "已观看回放" in body and "未观看回放" not in body:
-                    log("[replay] UI 已变为已观看回放 ✓")
+                    log("[replay] UI 已变为已观看回放 [OK]")
                     return True
             except Exception:
                 pass
@@ -320,7 +322,7 @@ def watch_replay(
             fr = basic_info_finish_replay(page, lesson_id, origin=origin)
             lv = is_live_viewed(page, classroom_id, lesson_id, origin=origin)
             if fr or lv:
-                log("[replay] 平台已确认完成态 ✓")
+                log("[replay] 平台已确认完成态 [OK]")
             else:
                 log("[replay] 本地已达阈值；若日志未变「已观看回放」可再跑或提高 complete_ratio")
             if on_progress:
@@ -358,7 +360,7 @@ def watch_replay(
                 fr = basic_info_finish_replay(page, lesson_id, origin=origin)
                 lv = is_live_viewed(page, classroom_id, lesson_id, origin=origin)
                 if fr or lv:
-                    log("[replay] 播完且完成态确认 ✓")
+                    log("[replay] 播完且完成态确认 [OK]")
                     return True
                 if segs > 1 and len(segments_seen) < segs:
                     log(f"[replay] 分片 {len(segments_seen)}/{segs}，继续…")
@@ -372,7 +374,7 @@ def watch_replay(
                     finished_seg_sec = _finished_sec()
                     progress = finished_seg_sec / denom if denom > 0 else progress
                     if progress >= ratio or (target_sec > 0 and finished_seg_sec >= target_sec):
-                        log(f"[replay] 视频结束且已达 {ratio*100:.0f}% 阈值 ✓")
+                        log(f"[replay] 视频结束且已达 {ratio*100:.0f}% 阈值 [OK]")
                         return True
                     log("[replay] 视频侧结束，等待平台同步…")
                     for _ in range(5):
