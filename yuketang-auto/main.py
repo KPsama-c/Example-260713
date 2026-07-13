@@ -42,6 +42,7 @@ from yuketang.ui import (
     pick_action,
     pick_attend_filter,
     print_main_menu,
+    profiles_submenu,
     prompt_yes_no,
     settings_submenu,
     wizard_first_run,
@@ -502,10 +503,16 @@ def main() -> int:
             if action == "browser_id":
                 cfg = capture_classroom_from_page(page, cfg, log=print)
                 course_url, classroom_id, url_candidates = resolve_runtime(cfg)
-                if auto_save and has_classroom(cfg) and prompt_yes_no(
-                    "保存课堂到 config.yaml？", default=True
-                ):
+                if auto_save and prompt_yes_no("保存到 config.yaml？", default=True):
                     save_settings(cfg_path, cfg)
+                continue
+
+            if action == "profiles":
+                cfg = profiles_submenu(cfg)
+                course_url, classroom_id, url_candidates = resolve_runtime(cfg)
+                if auto_save and prompt_yes_no("保存到 config.yaml？", default=True):
+                    save_settings(cfg_path, cfg)
+                    print(f"[main] 已保存 -> {cfg_path}")
                 continue
 
             # all_absent: 强制仅缺勤 + 全部观看

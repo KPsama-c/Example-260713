@@ -6,7 +6,14 @@ import sys
 from typing import Any, Callable
 
 from yuketang.rate import PRESETS, parse_rate_value
-from yuketang.settings import apply_classroom_input, has_classroom
+from yuketang.settings import (
+    activate_profile,
+    apply_classroom_input,
+    delete_profile,
+    has_classroom,
+    list_profiles,
+    upsert_profile,
+)
 from yuketang.urls import resolve_classroom_id
 
 
@@ -92,10 +99,13 @@ def wizard_first_run(cfg: dict[str, Any]) -> dict[str, Any]:
 
 def print_main_menu(cfg: dict[str, Any], rate: float) -> None:
     cid = cfg.get("classroom_id") or "?"
+    ap = str(cfg.get("active_profile") or "") or "(无)"
+    nprof = len(list_profiles(cfg))
     print()
     print("=" * 56)
     print(" 主菜单")
     print(f"  课堂 ID : {cid}")
+    print(f"  配置档  : {ap}  （共 {nprof} 个）")
     print(f"  倍速    : {rate}x")
     print(f"  有效线  : {float(cfg.get('complete_ratio', 0.65))*100:.0f}%")
     print(f"  界面    : {'无头' if cfg.get('headless') else '有界面'}")
@@ -107,9 +117,10 @@ def print_main_menu(cfg: dict[str, Any], rate: float) -> None:
     print("  [2] 观看下一节（1 节）")
     print("  [3] 全部观看（当前筛选 / 不限签到可先选 6）")
     print("  [4] 仅缺勤 · 全部观看")
-    print("  [5] 设置（倍速 / 阈值 / 换课 / 筛选 / 界面）")
+    print("  [5] 设置（倍速 / 阈值 / 换课 / 配置档 / 筛选 / 界面）")
     print("  [6] 切换筛选：不限签到 / 仅缺勤 / 仅已签到")
     print("  [7] 从浏览器当前页识别课堂 ID")
+    print("  [8] 配置档（列出 / 切换 / 保存当前 / 删除）")
     print("  [0] 退出")
     print("=" * 56)
 
@@ -132,6 +143,8 @@ def pick_action() -> str:
         return "filter"
     if raw in ("7", "b", "browser"):
         return "browser_id"
+    if raw in ("8", "p", "profile", "profiles"):
+        return "profiles"
     return raw
 
 
@@ -151,6 +164,67 @@ def pick_attend_filter(current: str = "all") -> str:
     return "all"
 
 
+def profiles_submenu(cfg: dict[str, Any]) -> dict[str, Any]:
+    """列出 / 切换 / 保存当前 / 删除配置档。"""
+    print()
+    print("--- 配置档 ---")
+    profiles = list_profiles(cfg)
+    if not profiles:
+        print("  （暂无配置档）")
+    else:
+        for i, p in enumerate(profiles, 1):
+            mark = "*" if p["classroom_id"] == str(cfg.get("classroom_id") or "") else " "
+            print(f"  {mark}[{i}] {p['name']}  classroom={p['classroom_id']}")
+    print("  [s] 将当前课堂保存为配置档")
+    print("  [d] 删除配置档")
+    print("  [0] 返回")
+    raw = prompt_line("选择编号切换 / s / d / 0", "0").strip().lower()
+    if raw in ("0", "", "q"):
+        return cfg
+    if raw in ("s", "save"):
+        if not has_classroom(cfg):
+            print("  当前无有效课堂，请先换课")
+            return cfg
+        cid = str(cfg.get("classroom_id") or "")
+        name = prompt_line("配置档名称", str(cfg.get("active_profile") or cid))
+        upsert_profile(
+            cfg,
+            classroom_id=cid,
+            name=name or cid,
+            course_url=str(cfg.get("course_url") or ""),
+            activate=True,
+        )
+        print(f"  ✓ 已保存配置档 {name or cid}")
+        return cfg
+    if raw in ("d", "del", "delete"):
+        if not profiles:
+            print("  无配置档可删")
+            return cfg
+        key = prompt_line("输入编号 / name / classroom_id 删除", "")
+        if not key:
+            return cfg
+        if key.isdigit() and 1 <= int(key) <= len(profiles):
+            key = profiles[int(key) - 1]["classroom_id"]
+        if delete_profile(cfg, key):
+            print(f"  ✓ 已删除 {key}（断点未清）")
+        else:
+            print("  未找到该配置档")
+        return cfg
+    # 按编号或 name/id 切换
+    if raw.isdigit() and 1 <= int(raw) <= len(profiles):
+        target = profiles[int(raw) - 1]["classroom_id"]
+    else:
+        target = raw
+    if activate_profile(cfg, target):
+        print(
+            f"  ✓ 已切换 -> {cfg.get('active_profile')} "
+            f"(classroom={cfg.get('classroom_id')})"
+        )
+    else:
+        print("  切换失败，请检查输入")
+    return cfg
+
+
 def settings_submenu(cfg: dict[str, Any]) -> dict[str, Any]:
     print()
     print("--- 设置 ---")
@@ -159,6 +233,7 @@ def settings_submenu(cfg: dict[str, Any]) -> dict[str, Any]:
     print("  [3] 换课（URL / ID）")
     print("  [4] 切换 有界面/无头")
     print("  [5] 观看筛选（全部 / 仅缺勤 / 仅已签到）")
+    print("  [6] 配置档（多课堂）")
     print("  [0] 返回")
     choice = prompt_line("设置项", "0")
     if choice == "1":
@@ -174,6 +249,16 @@ def settings_submenu(cfg: dict[str, Any]) -> dict[str, Any]:
             print("  无效数字")
     elif choice == "3":
         cfg = prompt_classroom(cfg)
+        # 换课后自动 upsert，便于多课
+        if has_classroom(cfg):
+            cid = str(cfg.get("classroom_id") or "")
+            upsert_profile(
+                cfg,
+                classroom_id=cid,
+                name=str(cfg.get("active_profile") or cid),
+                course_url=str(cfg.get("course_url") or ""),
+                activate=True,
+            )
     elif choice == "4":
         cfg["headless"] = not prompt_yes_no(
             "使用有界面浏览器", default=not bool(cfg.get("headless"))
@@ -182,6 +267,8 @@ def settings_submenu(cfg: dict[str, Any]) -> dict[str, Any]:
     elif choice == "5":
         cfg["attend_filter"] = pick_attend_filter(str(cfg.get("attend_filter") or "all"))
         print(f"  ✓ attend_filter = {cfg['attend_filter']}")
+    elif choice == "6":
+        cfg = profiles_submenu(cfg)
     return cfg
 
 

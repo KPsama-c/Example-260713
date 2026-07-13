@@ -191,6 +191,31 @@
       padding: 8px 0; border-bottom: 1px dashed #243044; cursor: pointer; color: var(--text);
     }
     #roomList li:hover { color: #93c5fd; }
+
+    /* 窄屏：按钮全宽、双列改单列、日志略矮、触摸更易点 */
+    @media (max-width: 640px) {
+      .wrap { padding: 14px 10px 36px; }
+      header h1 { font-size: 1.18rem; }
+      header p { font-size: 0.84rem; }
+      .card { padding: 14px 12px 12px; border-radius: 12px; }
+      .row { grid-template-columns: 1fr; }
+      .actions { flex-direction: column; }
+      .actions button { width: 100%; padding: 11px 12px; }
+      .checks { flex-direction: column; gap: 10px; }
+      #log { height: 220px; font-size: 0.72rem; }
+      #pending { max-height: 200px; }
+      .progress-stats { gap: 6px 10px; font-size: 0.74rem; }
+      .toast {
+        left: 10px; right: 10px; bottom: 10px; max-width: none;
+        font-size: 0.86rem;
+      }
+      .status { flex-wrap: wrap; }
+      #profileSelect { min-width: 0 !important; width: 100%; }
+    }
+    @media (max-width: 400px) {
+      header h1 { font-size: 1.08rem; }
+      button { font-size: 0.84rem; }
+    }
   </style>
 </head>
 <body>

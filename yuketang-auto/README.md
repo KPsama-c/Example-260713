@@ -4,7 +4,7 @@
 
 > **免责声明**：[DISCLAIMER.md](./DISCLAIMER.md) · 非官方 · 仅限本人账号 · 风险自负  
 > **范围**：只做观看回放；**不**签到、**不**答题  
-> **版本**：0.8.3
+> **版本**：0.8.4
 
 ---
 
@@ -39,6 +39,8 @@ python main.py
 # 或
 python main.py --id 你的classroom_id --list-only --headed
 ```
+
+交互菜单 **[8]** 可管理配置档（列出 / 切换 / 保存 / 删除），与 Web 下拉一致。
 
 ---
 
