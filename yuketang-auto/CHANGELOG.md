@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1] - 2026-07-13
+
+### 多课堂
+- 配置项 `profiles` / `active_profile`：保存多门课，Web 下拉切换
+- `POST /api/profile/activate`、`/api/profile/upsert`
+- 保存课堂 / 点选「我的班级」自动 upsert 配置档
+- 断点仍为 `classroom:lesson`，切换不清 progress
+
 ## [0.8.0] - 2026-07-13
 
 ### 可靠核心

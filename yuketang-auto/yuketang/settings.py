@@ -28,10 +28,14 @@ DEFAULTS: dict[str, Any] = {
     "storage_state": "data/storage_state.json",
     "progress_file": "data/progress.json",
     "failed_file": "data/failed.json",
+    "soft_file": "data/soft.json",
     "max_videos": 0,
     "wait_login_timeout_sec": 180,
     "screenshot_on_error": True,
     "pause_between_sec": [2, 6],
+    # 多课堂配置档（断点仍用 classroom:lesson，单 progress 文件即可）
+    "profiles": [],
+    "active_profile": "",
 }
 
 _SAVE_KEYS = (
@@ -48,13 +52,126 @@ _SAVE_KEYS = (
     "storage_state",
     "progress_file",
     "failed_file",
+    "soft_file",
     "max_videos",
     "wait_login_timeout_sec",
     "screenshot_on_error",
     "pause_between_sec",
+    "profiles",
+    "active_profile",
+    "require_platform_confirm",
+    "confirm_grace_sec",
+    "soft_boost",
+    "retry_per_lesson",
 )
 
 _RE_DIGITS = re.compile(r"^\d{5,}$")
+
+
+def _normalize_profiles(raw: Any) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    if not isinstance(raw, list):
+        return out
+    seen: set[str] = set()
+    for it in raw:
+        if not isinstance(it, dict):
+            continue
+        cid = str(it.get("classroom_id") or "").strip()
+        if not cid or cid in seen:
+            continue
+        name = str(it.get("name") or cid).strip() or cid
+        url = str(it.get("course_url") or "").strip()
+        if not url:
+            url = f"https://www.yuketang.cn/v2/web/studentLog/{cid}"
+        out.append({"name": name, "classroom_id": cid, "course_url": url})
+        seen.add(cid)
+    return out
+
+
+def list_profiles(cfg: dict[str, Any]) -> list[dict[str, str]]:
+    return _normalize_profiles(cfg.get("profiles"))
+
+
+def upsert_profile(
+    cfg: dict[str, Any],
+    *,
+    classroom_id: str,
+    name: str = "",
+    course_url: str = "",
+    activate: bool = False,
+) -> dict[str, Any]:
+    """新增或更新配置档；可选立即激活。"""
+    cid = str(classroom_id or "").strip()
+    if not cid:
+        return cfg
+    name = (name or "").strip() or cid
+    url = (course_url or "").strip() or f"https://www.yuketang.cn/v2/web/studentLog/{cid}"
+    profiles = list_profiles(cfg)
+    found = False
+    for p in profiles:
+        if p["classroom_id"] == cid:
+            p["name"] = name
+            p["course_url"] = url
+            found = True
+            break
+    if not found:
+        profiles.append({"name": name, "classroom_id": cid, "course_url": url})
+    cfg["profiles"] = profiles
+    if activate:
+        activate_profile(cfg, cid)
+    return cfg
+
+
+def activate_profile(cfg: dict[str, Any], key: str) -> bool:
+    """按 name 或 classroom_id 激活配置档，写回顶层 classroom_id/course_url。"""
+    key = str(key or "").strip()
+    if not key:
+        return False
+    for p in list_profiles(cfg):
+        if p["classroom_id"] == key or p["name"] == key:
+            cfg["classroom_id"] = p["classroom_id"]
+            cfg["course_url"] = p["course_url"]
+            cfg["active_profile"] = p["name"]
+            return True
+    # 允许直接激活未知 id：写入顶层并补档
+    if _RE_DIGITS.match(key):
+        apply_classroom_input(cfg, key)
+        upsert_profile(
+            cfg,
+            classroom_id=key,
+            name=key,
+            course_url=str(cfg.get("course_url") or ""),
+            activate=False,
+        )
+        cfg["active_profile"] = key
+        return True
+    return False
+
+
+def ensure_profile_from_current(cfg: dict[str, Any]) -> None:
+    """若当前有 classroom 且不在 profiles，自动补一条。"""
+    if not has_classroom(cfg):
+        return
+    _, cid, _ = resolve_runtime(cfg)
+    if not cid:
+        return
+    profiles = list_profiles(cfg)
+    if any(p["classroom_id"] == cid for p in profiles):
+        if not cfg.get("active_profile"):
+            for p in profiles:
+                if p["classroom_id"] == cid:
+                    cfg["active_profile"] = p["name"]
+                    break
+        return
+    name = str(cfg.get("active_profile") or cid)
+    upsert_profile(
+        cfg,
+        classroom_id=cid,
+        name=name,
+        course_url=str(cfg.get("course_url") or ""),
+        activate=False,
+    )
+    cfg["active_profile"] = name
 
 
 def load_settings(path: Path) -> dict[str, Any]:
@@ -71,6 +188,13 @@ def load_settings(path: Path) -> dict[str, Any]:
     for k, v in raw.items():
         if v is not None:
             cfg[k] = v
+    cfg["profiles"] = _normalize_profiles(cfg.get("profiles"))
+    # 有 active_profile 时对齐顶层课堂
+    ap = str(cfg.get("active_profile") or "").strip()
+    if ap:
+        activate_profile(cfg, ap)
+    else:
+        ensure_profile_from_current(cfg)
     return cfg
 
 

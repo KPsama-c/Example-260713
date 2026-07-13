@@ -205,6 +205,16 @@
       <section class="card">
         <h2><span class="dot"></span> 配置与任务</h2>
         <form id="cfgForm" onsubmit="return false;">
+          <label for="profileSelect">配置档（多课堂切换）</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <select id="profileSelect" style="flex:1;min-width:160px;background:var(--input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px">
+              <option value="">— 当前未保存配置档 —</option>
+            </select>
+            <button type="button" class="btn-ghost" id="btnProfileSwitch">切换</button>
+            <button type="button" class="btn-ghost" id="btnProfileAdd">加入配置档</button>
+          </div>
+          <input type="hidden" id="profile_name" value="{{ active_profile }}" />
+
           <label for="classroom_id">classroom_id（不是 course_id）</label>
           <input id="classroom_id" type="text" placeholder="例如 YOUR_CLASSROOM_ID" value="{{ classroom_id }}" />
 
@@ -213,7 +223,7 @@
 
           <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <button type="button" class="btn-ghost" id="btnRooms">刷新我的班级</button>
-            <span style="font-size:0.78rem;color:var(--muted)">登录后点选正确班级</span>
+            <span style="font-size:0.78rem;color:var(--muted)">登录后点选；点选可加入配置档</span>
           </div>
           <ul id="roomList"></ul>
 
@@ -364,11 +374,36 @@
         complete_ratio: parseFloat($("complete_ratio").value || "0.65"),
         headless: $("headless").checked,
         attend_filter: selectedFilter(),
+        profile_name: ($("profile_name") && $("profile_name").value.trim()) || "",
       };
     }
 
+    function fillProfiles(profiles, active) {
+      const sel = $("profileSelect");
+      if (!sel) return;
+      const list = profiles || [];
+      const act = active || "";
+      sel.innerHTML = "";
+      if (!list.length) {
+        const o = document.createElement("option");
+        o.value = "";
+        o.textContent = "— 暂无配置档，保存后自动加入 —";
+        sel.appendChild(o);
+        return;
+      }
+      list.forEach((p) => {
+        const o = document.createElement("option");
+        o.value = p.classroom_id;
+        o.textContent = `${p.name || p.classroom_id} (${p.classroom_id})`;
+        if (p.classroom_id === act || p.name === act || String(p.classroom_id) === String($("classroom_id").value.trim())) {
+          o.selected = true;
+        }
+        sel.appendChild(o);
+      });
+    }
+
     function setRunButtons(running) {
-      ["btnList", "btnOnce", "btnAll", "btnAllAbsent", "btnSelected", "btnSelAll", "btnSelNone"].forEach((id) => {
+      ["btnList", "btnOnce", "btnAll", "btnAllAbsent", "btnSelected", "btnSelAll", "btnSelNone", "btnProfileSwitch", "btnProfileAdd", "profileSelect"].forEach((id) => {
         if ($(id)) $(id).disabled = !!running;
       });
       $("btnStop").disabled = !running;
@@ -391,7 +426,52 @@
       toast("配置已保存");
       if (data.classroom_id) $("classroom_id").value = data.classroom_id;
       if (data.course_url) $("course_url").value = data.course_url;
+      if (data.active_profile && $("profile_name")) $("profile_name").value = data.active_profile;
+      fillProfiles(data.profiles || [], data.active_profile || "");
       return true;
+    }
+
+    async function switchProfile() {
+      const key = $("profileSelect").value;
+      if (!key) { toast("请先选择配置档"); return; }
+      const res = await fetch("/api/profile/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+      });
+      const data = await res.json();
+      if (!data.ok) { toast(data.error || "切换失败"); return; }
+      if (data.classroom_id) $("classroom_id").value = data.classroom_id;
+      if (data.course_url) $("course_url").value = data.course_url;
+      if (data.active_profile && $("profile_name")) $("profile_name").value = data.active_profile;
+      fillProfiles(data.profiles || [], data.active_profile || "");
+      toast(data.message || "已切换");
+    }
+
+    async function addCurrentProfile() {
+      const cid = $("classroom_id").value.trim();
+      if (!cid) { toast("请先填写 classroom_id"); return; }
+      let name = ($("profile_name") && $("profile_name").value.trim()) || "";
+      if (!name) {
+        name = prompt("配置档显示名称（可改）", cid) || cid;
+      }
+      const res = await fetch("/api/profile/upsert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classroom_id: cid,
+          name,
+          course_url: $("course_url").value.trim(),
+          activate: true,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) { toast(data.error || "保存配置档失败"); return; }
+      if (data.classroom_id) $("classroom_id").value = data.classroom_id;
+      if (data.course_url) $("course_url").value = data.course_url;
+      if (data.active_profile && $("profile_name")) $("profile_name").value = data.active_profile;
+      fillProfiles(data.profiles || [], data.active_profile || "");
+      toast(data.message || "已加入配置档");
     }
 
     async function runAction(action, filterOverride, lessonIds) {
@@ -595,10 +675,29 @@
         li.innerHTML = `<strong>${escapeHtml(r.label || r.name || "")}</strong>`
           + `<div style="color:var(--muted);font-size:0.76rem">classroom=${escapeHtml(r.classroom_id)}`
           + (r.course_id ? ` · course=${escapeHtml(r.course_id)}` : "") + `</div>`;
-        li.onclick = () => {
+        li.onclick = async () => {
           $("classroom_id").value = r.classroom_id;
           $("course_url").value = `https://www.yuketang.cn/v2/web/studentLog/${r.classroom_id}`;
-          toast(`已填入 ${r.classroom_id}`);
+          const name = r.label || r.name || r.classroom_id;
+          if ($("profile_name")) $("profile_name").value = name;
+          // 点选即加入并激活配置档
+          const res = await fetch("/api/profile/upsert", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              classroom_id: r.classroom_id,
+              name,
+              course_url: $("course_url").value.trim(),
+              activate: true,
+            }),
+          });
+          const d = await res.json();
+          if (d.ok) {
+            fillProfiles(d.profiles || [], d.active_profile || "");
+            toast(`已切换配置档：${name}`);
+          } else {
+            toast(`已填入 ${r.classroom_id}`);
+          }
         };
         list.appendChild(li);
       });
@@ -607,6 +706,8 @@
 
     $("btnSave").onclick = () => saveConfig();
     $("btnRooms").onclick = () => loadRooms();
+    if ($("btnProfileSwitch")) $("btnProfileSwitch").onclick = () => switchProfile();
+    if ($("btnProfileAdd")) $("btnProfileAdd").onclick = () => addCurrentProfile();
     $("btnList").onclick = () => runAction("list");
     $("btnOnce").onclick = () => runAction("once");
     $("btnAll").onclick = () => {
@@ -663,6 +764,16 @@
       const v = "{{ attend_filter|default('all') }}";
       const el = document.querySelector(`input[name="attend_filter"][value="${v}"]`);
       if (el) el.checked = true;
+    })();
+
+    (function initProfiles() {
+      try {
+        const profiles = {{ profiles|default([])|tojson }};
+        const active = {{ (active_profile or '')|tojson }};
+        fillProfiles(profiles, active);
+      } catch (e) {
+        fillProfiles([], "");
+      }
     })();
 
     pollStatus();

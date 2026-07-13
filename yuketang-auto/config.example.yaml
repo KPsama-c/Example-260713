@@ -9,6 +9,14 @@
 
 course_url: ""
 classroom_id: null
+# 多课堂：profiles 列表 + active_profile 名称；断点按 classroom:lesson 隔离
+# profiles:
+#   - name: 课A
+#     classroom_id: "YOUR_CLASSROOM_ID"
+#     course_url: "https://www.yuketang.cn/v2/web/studentLog/YOUR_CLASSROOM_ID"
+# active_profile: 课A
+profiles: []
+active_profile: ""
 prefer_desktop: true
 
 playback_rate: 1.25

@@ -32,11 +32,14 @@ from yuketang.jobs import (
 )
 from yuketang.rate import parse_rate_value
 from yuketang.settings import (
+    activate_profile,
     apply_classroom_input,
     has_classroom,
+    list_profiles,
     load_settings,
     resolve_runtime,
     save_settings,
+    upsert_profile,
 )
 
 TEMPLATE_DIR = ROOT / "webui" / "templates"
@@ -48,6 +51,7 @@ app = Flask(__name__, template_folder=str(TEMPLATE_DIR))
 def _public_cfg() -> dict:
     cfg = load_settings(CONFIG_PATH)
     _, cid, _ = resolve_runtime(cfg) if has_classroom(cfg) else ("", "", [])
+    profiles = list_profiles(cfg)
     return {
         "version": __version__,
         "classroom_id": cid or (cfg.get("classroom_id") or "") or "",
@@ -56,6 +60,8 @@ def _public_cfg() -> dict:
         "complete_ratio": cfg.get("complete_ratio", 0.65),
         "attend_filter": cfg.get("attend_filter", "all") or "all",
         "headless": bool(cfg.get("headless", False)),
+        "profiles": profiles,
+        "active_profile": str(cfg.get("active_profile") or "") or "",
     }
 
 
@@ -113,6 +119,20 @@ def api_save_settings():
     if not has_classroom(cfg):
         return jsonify({"ok": False, "error": "请填写 classroom_id 或有效学习日志 URL"}), 400
 
+    # 保存时写入/更新配置档
+    _, cid, _ = resolve_runtime(cfg)
+    if cid:
+        profile_name = str(data.get("profile_name") or "").strip() or str(
+            cfg.get("active_profile") or cid
+        )
+        upsert_profile(
+            cfg,
+            classroom_id=cid,
+            name=profile_name,
+            course_url=str(cfg.get("course_url") or ""),
+            activate=True,
+        )
+
     save_settings(CONFIG_PATH, cfg)
     primary, cid, _ = resolve_runtime(cfg)
     return jsonify({
@@ -123,7 +143,47 @@ def api_save_settings():
         "complete_ratio": cfg.get("complete_ratio"),
         "attend_filter": cfg.get("attend_filter", "all"),
         "headless": cfg.get("headless"),
+        "profiles": list_profiles(cfg),
+        "active_profile": str(cfg.get("active_profile") or ""),
     })
+
+
+@app.post("/api/profile/activate")
+def api_profile_activate():
+    if STATE.running:
+        return jsonify({"ok": False, "error": "任务运行中，请先停止再切换课堂"}), 409
+    data = request.get_json(silent=True) or {}
+    key = str(data.get("key") or data.get("classroom_id") or data.get("name") or "").strip()
+    if not key:
+        return jsonify({"ok": False, "error": "缺少 key（name 或 classroom_id）"}), 400
+    cfg = load_settings(CONFIG_PATH)
+    if not activate_profile(cfg, key):
+        return jsonify({"ok": False, "error": f"未找到配置档: {key}"}), 404
+    save_settings(CONFIG_PATH, cfg)
+    return jsonify({"ok": True, **_public_cfg(), "message": f"已切换到 {cfg.get('active_profile')}"})
+
+
+@app.post("/api/profile/upsert")
+def api_profile_upsert():
+    if STATE.running:
+        return jsonify({"ok": False, "error": "任务运行中，请先停止"}), 409
+    data = request.get_json(silent=True) or {}
+    cid = str(data.get("classroom_id") or "").strip()
+    if not cid:
+        return jsonify({"ok": False, "error": "缺少 classroom_id"}), 400
+    name = str(data.get("name") or cid).strip()
+    url = str(data.get("course_url") or "").strip()
+    activate = bool(data.get("activate", True))
+    cfg = load_settings(CONFIG_PATH)
+    upsert_profile(
+        cfg,
+        classroom_id=cid,
+        name=name,
+        course_url=url,
+        activate=activate,
+    )
+    save_settings(CONFIG_PATH, cfg)
+    return jsonify({"ok": True, **_public_cfg(), "message": f"已保存配置档 {name}"})
 
 
 @app.post("/api/run")
