@@ -15,7 +15,6 @@ from urllib.parse import urlparse
 
 # 例: /m/v2/course/normalcourse/logs/{course_id}/{classroom_id}
 _RE_M_LOGS = re.compile(
-
     r"/m/v2/course/normalcourse/logs/(\d+)(?:/(\d+))?",
     re.I,
 )
@@ -31,8 +30,11 @@ def _origin(url: str) -> str:
 
 
 def parse_ids(url: str) -> dict[str, str | None]:
-    """从 URL 解析 course_id / classroom_id。"""
+    """从 URL 或纯数字解析 course_id / classroom_id。"""
     url = (url or "").strip()
+    # 纯 classroom_id
+    if re.fullmatch(r"\d{5,}", url):
+        return {"course_id": None, "classroom_id": url}
     m = _RE_M_LOGS.search(url)
     if m:
         a, b = m.group(1), m.group(2)

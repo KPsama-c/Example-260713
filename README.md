@@ -6,4 +6,4 @@
 
 | 目录 | 说明 |
 |------|------|
-| [yuketang-auto](./yuketang-auto/) | 雨课堂「智·汇大讲堂」直播回放助手（Playwright，非官方，见子目录免责声明） |
+| [yuketang-auto](./yuketang-auto/) | 雨课堂「智·汇大讲堂」直播回放助手 v0.4（交互菜单/免手写配置，见子目录） |
