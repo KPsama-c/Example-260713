@@ -1,0 +1,53 @@
+# =============================================================================
+# 雨课堂 · 智·汇大讲堂 直播回放助手 — 配置示例
+# 使用：复制本文件为 config.yaml，再按说明填写你自己的课堂信息
+#   Windows:  copy config.example.yaml config.yaml
+#   macOS/Linux:  cp config.example.yaml config.yaml
+# =============================================================================
+# 请勿将填好真实 ID 的 config.yaml、data/ 上传到公开仓库。
+
+# --- 必填：学习日志入口（二选一写法即可）---------------------------------------
+# 桌面端学习日志（推荐）:
+#   https://www.yuketang.cn/v2/web/studentLog/<classroom_id>
+# 移动端日志:
+#   https://www.yuketang.cn/m/v2/course/normalcourse/logs/<course_id>/<classroom_id>
+# 注意：classroom_id 在移动端 URL 中是**第二段数字**，不要填成 course_id。
+course_url: "https://www.yuketang.cn/v2/web/studentLog/请替换为你的classroom_id"
+
+# 可选：显式指定 classroom_id（优先于从 URL 解析）
+classroom_id: null
+
+# 打开课程时优先尝试桌面端页面
+prefer_desktop: true
+
+# --- 播放 / 自定义倍速 -------------------------------------------------------
+# 目标倍速（也可用命令行覆盖：--rate 1.5  或  --speed 2x  或  --rate normal）
+# 支持数字、带 x 后缀、预设名（见 python main.py --list-rates）
+playback_rate: 1.25
+# 允许区间；超出将被钳制。默认 0.5 ~ 3.0
+playback_rate_min: 0.5
+playback_rate_max: 3.0
+# 兼容别名（可选，与 playback_rate 二选一即可）:
+# rate: 1.5
+# speed: "1.5x"
+
+# true = 无界面；首次登录建议 false（有界面扫码/密码）
+headless: false
+
+# 有效学习阈值：相对**整节回放总时长**。平台常见「≥60% 有效」，默认 0.65 留余量
+complete_ratio: 0.65
+
+# 单节最长等待（秒）。回放常 1~1.5 小时真时长，倍速后墙钟更短
+max_watch_sec: 7200
+
+# --- 运行 -------------------------------------------------------------------
+storage_state: "data/storage_state.json"
+progress_file: "data/progress.json"
+failed_file: "data/failed.json"
+
+# 0 = 不限制节数；调试可设 1，或命令行 --once
+max_videos: 0
+
+wait_login_timeout_sec: 180
+screenshot_on_error: true
+pause_between_sec: [2, 6]
