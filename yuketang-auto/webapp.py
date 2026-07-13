@@ -24,7 +24,12 @@ from flask import Flask, jsonify, render_template, request
 from yuketang import __version__
 from yuketang.browser import BrowserSession
 from yuketang.classrooms import fetch_joined_classrooms, rooms_to_dicts
-from yuketang.jobs import STATE, start_job_async
+from yuketang.jobs import (
+    STATE,
+    clear_failed_store,
+    clear_progress_store,
+    start_job_async,
+)
 from yuketang.rate import parse_rate_value
 from yuketang.settings import (
     apply_classroom_input,
@@ -148,7 +153,37 @@ def api_run():
 
 @app.get("/api/status")
 def api_status():
-    return jsonify(STATE.snapshot())
+    try:
+        since = int(request.args.get("since") or 0)
+    except (TypeError, ValueError):
+        since = 0
+    return jsonify(STATE.snapshot(since=since))
+
+
+@app.post("/api/cancel")
+def api_cancel():
+    ok = STATE.request_cancel()
+    if ok:
+        return jsonify({"ok": True, "message": "已请求停止，将在当前检查点退出"})
+    return jsonify({"ok": False, "message": "当前没有运行中的任务"}), 409
+
+
+@app.post("/api/clear-progress")
+def api_clear_progress():
+    if STATE.running:
+        return jsonify({"ok": False, "error": "任务运行中，请先停止"}), 409
+    cfg = load_settings(CONFIG_PATH)
+    n = clear_progress_store(ROOT, cfg)
+    return jsonify({"ok": True, "message": f"已清除 {n} 条本地断点", "cleared": n})
+
+
+@app.post("/api/clear-failed")
+def api_clear_failed():
+    if STATE.running:
+        return jsonify({"ok": False, "error": "任务运行中，请先停止"}), 409
+    cfg = load_settings(CONFIG_PATH)
+    n = clear_failed_store(ROOT, cfg)
+    return jsonify({"ok": True, "message": f"已清除 {n} 条失败记录", "cleared": n})
 
 
 @app.get("/api/classrooms")

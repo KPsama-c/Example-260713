@@ -42,6 +42,23 @@ class ProgressStore:
         self.meta[key] = {"title": title, "at": _now()}
         self.save()
 
+    def unmark(self, key: str) -> bool:
+        """移除断点；返回是否曾存在。"""
+        key = str(key)
+        if key not in self.completed and key not in self.meta:
+            return False
+        self.completed = [k for k in self.completed if k != key]
+        self.meta.pop(key, None)
+        self.save()
+        return True
+
+    def clear(self) -> int:
+        n = len(self.completed)
+        self.completed = []
+        self.meta = {}
+        self.save()
+        return n
+
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -88,6 +105,12 @@ class FailedStore:
     def add(self, key: str, title: str, reason: str) -> None:
         self.items.append(FailedItem(key=key, title=title, reason=reason))
         self.save()
+
+    def clear(self) -> int:
+        n = len(self.items)
+        self.items = []
+        self.save()
+        return n
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

@@ -81,6 +81,7 @@
     .btn-amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
     .btn-purple { background: linear-gradient(135deg, #a855f7, #7c3aed); }
     .btn-ghost { background: #243044; color: var(--text); }
+    .btn-danger { background: linear-gradient(135deg, #ef4444, #b91c1c); }
 
     .status {
       display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px;
@@ -196,7 +197,7 @@
   <div class="wrap">
     <header>
       <h1>雨课堂 · 智·汇大讲堂 控制台</h1>
-      <p>填写课堂后提交任务。回放会按倍速真实播放到有效进度（可能较久），右侧进度条与日志约 1 秒刷新，看到心跳即表示脚本在工作。</p>
+      <p>填写课堂后提交任务。回放按倍速真实播放；<b>仅平台确认「已观看回放」才写断点</b>，避免漏刷。可随时点停止。</p>
       <span class="badge">v{{ version }} · 本机 · 仅观看回放 · 不签到不答题</span>
     </header>
 
@@ -244,6 +245,11 @@
             <button type="button" class="btn-amber" id="btnOnce">下一节</button>
             <button type="button" class="btn-green" id="btnAll">全部观看</button>
             <button type="button" class="btn-purple" id="btnAllAbsent">仅缺勤·全部</button>
+            <button type="button" class="btn-danger" id="btnStop" disabled>停止</button>
+          </div>
+          <div class="actions" style="margin-top:8px">
+            <button type="button" class="btn-ghost" id="btnClearProg" style="font-size:0.8rem;opacity:.9">清除本地断点</button>
+            <button type="button" class="btn-ghost" id="btnClearFail" style="font-size:0.8rem;opacity:.9">清除失败记录</button>
           </div>
         </form>
       </section>
@@ -259,7 +265,7 @@
         </div>
 
         <div class="hint" id="runHint">
-          一节 70 分钟课在 1.25x 下刷到 65% 大约要 <b>35 分钟墙钟</b>。日志出现「播放中 [████…]」即脚本正常。
+          70 分钟课 1.25x 刷到 65% 约 <b>35 分钟墙钟</b>。日志「播放中 [##--…]」即正常。本地达标但平台未确认不会写断点。
         </div>
 
         <div class="progress-wrap" id="progressWrap">
@@ -268,7 +274,8 @@
           <div class="progress-stats">
             <span>进度 <b id="pPct">0%</b></span>
             <span>目标 <b id="pTarget">65%</b></span>
-            <span>预计剩余 <b id="pEta">—</b></span>
+            <span>本节剩余 <b id="pEta">—</b></span>
+            <span>批量剩余 <b id="pBatchEta">—</b></span>
             <span>倍速 <b id="pRate">—</b></span>
             <span>本节 <b id="pIndex">—</b></span>
           </div>
@@ -296,7 +303,7 @@
     const $ = (id) => document.getElementById(id);
     const logEl = $("log");
     const pendingEl = $("pending");
-    let lastLogLen = 0;
+    let logCursor = 0;  // 已消费的 log_len
     let stickBottom = true;
 
     logEl.addEventListener("scroll", () => {
@@ -328,6 +335,13 @@
       };
     }
 
+    function setRunButtons(running) {
+      ["btnList", "btnOnce", "btnAll", "btnAllAbsent"].forEach((id) => {
+        $(id).disabled = !!running;
+      });
+      $("btnStop").disabled = !running;
+    }
+
     async function saveConfig() {
       const res = await fetch("/api/settings", {
         method: "POST",
@@ -356,14 +370,47 @@
       pollStatus();
     }
 
+    async function stopJob() {
+      const res = await fetch("/api/cancel", { method: "POST" });
+      const data = await res.json();
+      toast(data.message || (data.ok ? "已请求停止" : "无法停止"));
+      pollStatus();
+    }
+
+    async function clearProgress() {
+      if (!confirm("清除本地 progress.json 断点？下次会重新出现待办（平台已看的会在对账时自动跳过）。")) return;
+      const res = await fetch("/api/clear-progress", { method: "POST" });
+      const data = await res.json();
+      toast(data.message || data.error || "完成");
+    }
+
+    async function clearFailed() {
+      if (!confirm("清除失败记录 failed.json？")) return;
+      const res = await fetch("/api/clear-failed", { method: "POST" });
+      const data = await res.json();
+      toast(data.message || data.error || "完成");
+    }
+
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, (c) => ({
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
       })[c]);
     }
 
+    function formatLogLine(line) {
+      const e = escapeHtml(line);
+      if (line.includes("[replay]") && (line.includes("播放中") || line.includes("%"))) {
+        return `<span class="hi">${e}</span>`;
+      }
+      if (line.includes("[OK]") || line.includes("平台已确认")) {
+        return `<span class="hi">${e}</span>`;
+      }
+      return e;
+    }
+
     function renderProgress(s) {
       const p = s.progress || {};
+      const b = s.batch || {};
       const wrap = $("progressWrap");
       const hint = $("runHint");
       if (s.running && (p.phase === "playing" || p.phase === "opening" || p.pct != null)) {
@@ -379,6 +426,7 @@
         $("pPct").textContent = `${pct.toFixed(1)}%`;
         $("pTarget").textContent = `${target}%`;
         $("pEta").textContent = p.eta_text || (p.eta_sec != null ? `${p.eta_sec}s` : "—");
+        $("pBatchEta").textContent = b.batch_eta_text || b.est_wall_text || "—";
         $("pRate").textContent = p.rate != null ? `${p.rate}x` : "—";
         $("pIndex").textContent = (p.index && p.total) ? `${p.index}/${p.total}` : "—";
       } else if (!s.running) {
@@ -386,20 +434,40 @@
         hint.classList.remove("show");
       } else {
         hint.classList.add("show");
+        if (b.batch_eta_text || b.est_wall_text) {
+          $("pBatchEta").textContent = b.batch_eta_text || b.est_wall_text;
+        }
       }
+    }
+
+    function appendLogs(lines) {
+      if (!lines || !lines.length) return;
+      const frag = document.createDocumentFragment();
+      const tmp = document.createElement("div");
+      tmp.innerHTML = lines.map(formatLogLine).join("\n") + "\n";
+      while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+      // 用 text/html 追加：保持简单，直接拼接 innerHTML
+      const html = lines.map(formatLogLine).join("\n");
+      if (logEl.innerHTML) logEl.innerHTML += "\n" + html;
+      else logEl.innerHTML = html;
+      if (stickBottom) logEl.scrollTop = logEl.scrollHeight;
     }
 
     function renderStatus(s) {
       $("statusMsg").textContent = s.message || "—";
+      const soft = s.soft_done || 0;
+      const softPart = soft ? ` / 未确认 ${soft}` : "";
       $("statusMeta").textContent = s.running
-        ? `运行中 · ${s.action || ""} · 成功 ${s.done || 0} / 失败 ${s.fail || 0}`
-        : `空闲 · 上次 成功 ${s.done || 0} / 失败 ${s.fail || 0}`;
+        ? `运行中 · ${s.action || ""} · 确认 ${s.done || 0}${softPart} / 失败 ${s.fail || 0}`
+          + (s.cancel_requested ? " · 停止中…" : "")
+        : `空闲 · 上次 确认 ${s.done || 0}${softPart} / 失败 ${s.fail || 0}`;
       const pill = $("pill");
       pill.className = "pill";
       if (s.running) pill.classList.add("run");
       else if (s.ok === true) pill.classList.add("ok");
       else if (s.ok === false) pill.classList.add("err");
 
+      setRunButtons(!!s.running);
       renderProgress(s);
 
       pendingEl.innerHTML = "";
@@ -412,33 +480,30 @@
         pendingEl.appendChild(li);
       });
 
-      const logs = s.logs || [];
-      if (logs.length !== lastLogLen) {
-        // 高亮心跳行
-        logEl.innerHTML = logs.map((line) => {
-          const e = escapeHtml(line);
-          if (line.includes("[replay]") && (line.includes("播放中") || line.includes("%"))) {
-            return `<span class="hi">${e}</span>`;
-          }
-          return e;
-        }).join("\n");
-        if (stickBottom) logEl.scrollTop = logEl.scrollHeight;
-        lastLogLen = logs.length;
-        $("logMeta").textContent = `${logs.length} 行 · ${stickBottom ? "自动滚动" : "已固定"}`;
+      // 增量日志：since=logCursor
+      const total = s.log_len != null ? s.log_len : (s.logs || []).length;
+      const since = s.log_since != null ? s.log_since : 0;
+      const chunk = s.logs || [];
+      if (since === 0 && logCursor > 0 && total < logCursor) {
+        // 新任务清空了日志
+        logEl.innerHTML = "";
+        logCursor = 0;
       }
-
-      const busy = !!s.running;
-      ["btnSave","btnList","btnOnce","btnAll","btnAllAbsent","btnRooms"].forEach((id) => {
-        const el = $(id);
-        if (!el) return;
-        if (id === "btnSave") return;
-        el.disabled = busy;
-      });
+      if (since === logCursor && chunk.length) {
+        appendLogs(chunk);
+        logCursor = total;
+      } else if (total !== logCursor && chunk.length && since === 0) {
+        // 全量回退兼容
+        logEl.innerHTML = chunk.map(formatLogLine).join("\n");
+        logCursor = total;
+        if (stickBottom) logEl.scrollTop = logEl.scrollHeight;
+      }
+      $("logMeta").textContent = `${logCursor} 行 · ${stickBottom ? "自动滚动" : "已固定"}`;
     }
 
     async function pollStatus() {
       try {
-        const res = await fetch("/api/status");
+        const res = await fetch("/api/status?since=" + logCursor);
         const data = await res.json();
         renderStatus(data);
       } catch (e) { /* ignore */ }
@@ -479,6 +544,9 @@
       if (!confirm("仅观看缺勤且未看回放的全部课程？")) return;
       runAction("all", "absent");
     };
+    $("btnStop").onclick = () => stopJob();
+    $("btnClearProg").onclick = () => clearProgress();
+    $("btnClearFail").onclick = () => clearFailed();
 
     (function restoreFilter() {
       const v = "{{ attend_filter|default('all') }}";

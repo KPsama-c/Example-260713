@@ -17,6 +17,8 @@ playback_rate_max: 3.0
 
 headless: false
 complete_ratio: 0.65
+# true=仅平台确认「已观看回放」才写入断点（推荐，避免漏刷）
+require_platform_confirm: true
 max_watch_sec: 7200
 
 storage_state: "data/storage_state.json"

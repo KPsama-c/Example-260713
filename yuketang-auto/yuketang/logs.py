@@ -76,11 +76,15 @@ def fetch_learn_logs_page(
     offset: int = 20,
     actype: int = -1,
     origin: str = "https://www.yuketang.cn",
+    allow_navigation: bool = True,
 ) -> dict[str, Any]:
     """在浏览器上下文中 fetch。
 
     注意：不要强行加 classroom-id 等头，页面内 fetch 带这些反而会 500；
     Cookie 足够时默认头即可。
+
+    allow_navigation=False：禁止 page.goto 到学习日志（回放中调用时必须 False，
+    否则会打断当前 overview 页）。
     """
     path = (
         f"/v2/api/web/logs/learn/{classroom_id}"
@@ -92,7 +96,8 @@ def fetch_learn_logs_page(
     import json as _json
 
     raw: dict[str, Any] | None = None
-    for attempt in range(4):
+    attempts = 2 if not allow_navigation else 4
+    for attempt in range(attempts):
         raw = page.evaluate(
             """async (path) => {
                 try {
@@ -115,11 +120,9 @@ def fetch_learn_logs_page(
                     return payload
             except Exception:
                 pass
-        # 分页偶发 500，退避重试
-        page.wait_for_timeout(800 * (attempt + 1))
+        page.wait_for_timeout(400 * (attempt + 1) if not allow_navigation else 800 * (attempt + 1))
 
-
-    # 2) APIRequestContext + 雨课堂头
+    # 2) APIRequestContext + 雨课堂头（不导航）
     headers = _ykt_headers(classroom_id, origin)
     resp = page.request.get(url, headers=headers)
     if resp.ok:
@@ -130,49 +133,49 @@ def fetch_learn_logs_page(
         except Exception:
             pass
 
-    # 3) 刷新日志页，只抓 actype=-1（避免 actype=100 空列表覆盖）
-    captured: dict[str, Any] = {}
+    # 3) 仅允许导航时：刷新日志页抓包
+    if allow_navigation:
+        captured: dict[str, Any] = {}
 
-    def on_response(resp) -> None:  # type: ignore[no-untyped-def]
-        u = resp.url
-        if f"/v2/api/web/logs/learn/{classroom_id}" not in u:
-            return
-        if "actype=-1" not in u:
-            return
-        if f"page={page_idx}" not in u and page_idx != 0:
-            return
+        def on_response(resp) -> None:  # type: ignore[no-untyped-def]
+            u = resp.url
+            if f"/v2/api/web/logs/learn/{classroom_id}" not in u:
+                return
+            if "actype=-1" not in u:
+                return
+            if f"page={page_idx}" not in u and page_idx != 0:
+                return
+            try:
+                if "json" in (resp.headers.get("content-type") or ""):
+                    body = resp.json()
+                    if _payload_ok(body):
+                        acts = ((body.get("data") or {}).get("activities")) or []
+                        prev = captured.get("data")
+                        prev_n = len(((prev or {}).get("data") or {}).get("activities") or [])
+                        if len(acts) >= prev_n:
+                            captured["data"] = body
+            except Exception:
+                pass
+
+        page.on("response", on_response)
         try:
-            if "json" in (resp.headers.get("content-type") or ""):
-                body = resp.json()
-                if _payload_ok(body):
-                    acts = ((body.get("data") or {}).get("activities")) or []
-                    # 优先保留有 activities 的响应
-                    prev = captured.get("data")
-                    prev_n = len(((prev or {}).get("data") or {}).get("activities") or [])
-                    if len(acts) >= prev_n:
-                        captured["data"] = body
-        except Exception:
-            pass
+            page.goto(
+                f"{origin.rstrip('/')}/v2/web/studentLog/{classroom_id}",
+                wait_until="domcontentloaded",
+            )
+            page.wait_for_timeout(10000)
+            if page_idx > 0:
+                for _ in range(page_idx):
+                    page.mouse.wheel(0, 4000)
+                    page.wait_for_timeout(2500)
+        finally:
+            try:
+                page.remove_listener("response", on_response)
+            except Exception:
+                pass
 
-    page.on("response", on_response)
-    try:
-        page.goto(
-            f"{origin.rstrip('/')}/v2/web/studentLog/{classroom_id}",
-            wait_until="domcontentloaded",
-        )
-        page.wait_for_timeout(10000)
-        if page_idx > 0:
-            for _ in range(page_idx):
-                page.mouse.wheel(0, 4000)
-                page.wait_for_timeout(2500)
-    finally:
-        try:
-            page.remove_listener("response", on_response)
-        except Exception:
-            pass
-
-    if isinstance(captured.get("data"), dict) and _payload_ok(captured["data"]):
-        return captured["data"]
+        if isinstance(captured.get("data"), dict) and _payload_ok(captured["data"]):
+            return captured["data"]
 
     detail = ""
     body_text = ""
@@ -180,7 +183,6 @@ def fetch_learn_logs_page(
         body_text = str(raw.get("text") or "")
         detail = f" fetch_status={raw.get('status')} body={body_text[:200]!r}"
 
-    # 常见业务错误：把 course_id 当成 classroom_id
     if "403002" in body_text or "用户未加入班级" in body_text:
         raise LogsApiError(
             f"学习日志拒绝访问 classroom_id={classroom_id}（用户未加入班级 / 403002）。\n"
@@ -191,6 +193,7 @@ def fetch_learn_logs_page(
         )
     raise LogsApiError(
         f"logs API 失败: {url}{detail} request_status={getattr(resp, 'status', '?')}"
+        + ("" if allow_navigation else " (no-nav mode)")
     )
 
 
@@ -201,6 +204,7 @@ def fetch_all_activities(
     offset: int = 20,
     origin: str = "https://www.yuketang.cn",
     log: Callable[[str], None] = print,
+    allow_navigation: bool = True,
 ) -> list[LessonActivity]:
     """分页拉取全部学习日志活动。"""
     all_items: list[LessonActivity] = []
@@ -213,6 +217,7 @@ def fetch_all_activities(
             page_idx=page_idx,
             offset=offset,
             origin=origin,
+            allow_navigation=allow_navigation,
         )
         block = payload.get("data") or {}
         activities = block.get("activities") or []
@@ -292,9 +297,14 @@ def list_pending_replays(
     viewed = sum(1 for x in items if x.live_viewed)
     absent_n = sum(1 for x in items if not x.attend_status)
     filter_label = {"all": "不限签到", "absent": "仅缺勤", "present": "仅已签到"}[mode]
+    skipped = sum(
+        1
+        for x in items
+        if x.needs_replay and x.key in progress_keys and _attend_ok(x)
+    )
     log(
         f"[logs] 活动 {len(items)}，已观看回放 {viewed}，缺勤 {absent_n}，"
-        f"筛选={filter_label}，待处理 {len(pending)}（断点跳过 {len(progress_keys)}）"
+        f"筛选={filter_label}，待处理 {len(pending)}（本筛选断点跳过 {skipped}）"
     )
     return pending
 
@@ -305,11 +315,19 @@ def is_live_viewed(
     lesson_id: str,
     *,
     origin: str = "https://www.yuketang.cn",
+    allow_navigation: bool = True,
 ) -> bool | None:
-    """重新拉列表检查某节是否已观看回放。失败返回 None。"""
+    """重新拉列表检查某节是否已观看回放。失败返回 None。
+
+    回放进行中请传 allow_navigation=False，避免跳离 overview。
+    """
     try:
         items = fetch_all_activities(
-            page, classroom_id, origin=origin, log=lambda *_: None
+            page,
+            classroom_id,
+            origin=origin,
+            log=lambda *_: None,
+            allow_navigation=allow_navigation,
         )
     except Exception:
         return None
@@ -317,6 +335,50 @@ def is_live_viewed(
         if it.lesson_id == str(lesson_id):
             return it.live_viewed
     return None
+
+
+def page_shows_replay_done(page: Page) -> bool | None:
+    """轻量 UI：是否显示已观看回放。None=无法判断。"""
+    try:
+        v = page.evaluate(
+            """() => {
+              const t = (document.body && document.body.innerText) || '';
+              if (!t) return null;
+              if (t.includes('已观看回放') && !t.includes('未观看回放')) return true;
+              return false;
+            }"""
+        )
+        if v is None:
+            return None
+        return bool(v)
+    except Exception:
+        return None
+
+
+def platform_replay_confirmed(
+    page: Page,
+    lesson_id: str,
+    *,
+    classroom_id: str = "",
+    origin: str = "https://www.yuketang.cn",
+    allow_navigation: bool = False,
+) -> bool:
+    """平台是否确认回放完成（优先 basic-info，可选 logs）。"""
+    fr = basic_info_finish_replay(page, lesson_id, origin=origin)
+    if fr is True:
+        return True
+    if classroom_id:
+        lv = is_live_viewed(
+            page,
+            classroom_id,
+            lesson_id,
+            origin=origin,
+            allow_navigation=allow_navigation,
+        )
+        if lv is True:
+            return True
+    ui = page_shows_replay_done(page)
+    return ui is True
 
 
 def _page_fetch_json(page: Page, path: str) -> dict[str, Any] | None:

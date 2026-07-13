@@ -181,7 +181,7 @@ def run_watch_batch(
         print("-" * 56)
         print(f"[main] ({idx}/{len(targets)}) {item.title}")
         print(f"[main] lesson_id={item.lesson_id}  倍速={rate}x  目标≥{complete_ratio*100:.0f}%")
-        ok = watch_replay(
+        result = watch_replay(
             page,
             classroom_id=classroom_id,
             lesson_id=item.lesson_id,
@@ -192,17 +192,25 @@ def run_watch_batch(
             log=print,
             title=item.title,
         )
-        if ok:
+        if result.platform_confirmed:
             progress.mark_done(item.key, item.title)
             done_count += 1
             session.save_state()
-            print("[main] ✓ 本节完成")
+            print("[main] [OK] 平台已确认，已写入断点")
+        elif result.ok:
+            # 默认不写断点，避免漏刷
+            session.save_state()
+            print(
+                f"[main] [SOFT] 本地 {result.local_ratio*100:.1f}% 但平台未确认，未写断点"
+            )
+            # 仍计为「完成播放」但不增加 fail
+            done_count += 1
         else:
             fail_count += 1
-            failed.add(item.key, item.title, "watch_replay failed")
+            failed.add(item.key, item.title, result.reason or "watch_replay failed")
             if shot_on_err:
                 session.screenshot(data_dir / f"fail_replay_{item.lesson_id}.png")
-            print("[main] ✗ 本节失败")
+            print(f"[main] [FAIL] 本节失败 ({result.reason})")
         if idx < len(targets):
             delay = random.uniform(pause_lo, pause_hi)
             print(f"[main] 休息 {delay:.1f}s …")
