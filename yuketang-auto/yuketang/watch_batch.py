@@ -11,7 +11,7 @@ from yuketang.browser import BrowserSession
 from yuketang.job_state import STATE, LogFn
 from yuketang.login import is_logged_in
 from yuketang.pending_ops import DEFAULT_LESSON_SEC
-from yuketang.progress import FailedStore, ProgressStore, SoftStore
+from yuketang.progress import FailedStore, PartialStore, ProgressStore, SoftStore
 from yuketang.replay import ReplayResult, watch_replay
 from yuketang.util import fmt_eta, progress_key
 
@@ -41,6 +41,8 @@ def watch_lesson_batch(
     should_cancel: Callable[[], bool] | None = None,
     duration_map: dict[str, float] | None = None,
     update_state: bool = False,
+    partial: PartialStore | None = None,
+    resume_partial: bool = True,
 ) -> dict[str, Any]:
     """共享观看循环。
 
@@ -150,6 +152,8 @@ def watch_lesson_batch(
                 should_cancel=cancel_fn,
                 confirm_grace_sec=confirm_grace_sec,
                 soft_boost=soft_boost,
+                partial=partial,
+                resume_partial=resume_partial,
             )
             if result.cancelled or result.platform_confirmed or result.ok:
                 break
@@ -170,6 +174,8 @@ def watch_lesson_batch(
                 lesson_id=item.lesson_id,
             )
             soft.remove(cid, item.lesson_id)
+            if partial is not None:
+                partial.remove(cid, item.lesson_id)
             done_count += 1
             session.save_state()
             log("[job] [OK] 平台已确认，已写入断点")
@@ -183,6 +189,8 @@ def watch_lesson_batch(
                     title=item.title,
                     local_ratio=result.local_ratio,
                 )
+                if partial is not None:
+                    partial.remove(cid, item.lesson_id)
                 log(
                     f"[job] [SOFT] 本地 {result.local_ratio*100:.1f}% "
                     "平台未确认 — 未写断点，已记 soft 待对账"
@@ -194,6 +202,8 @@ def watch_lesson_batch(
                     classroom_id=cid,
                     lesson_id=item.lesson_id,
                 )
+                if partial is not None:
+                    partial.remove(cid, item.lesson_id)
                 done_count += 1
                 soft_count -= 1
                 log("[job] [OK] 本地达标已写断点（require_platform_confirm=false）")
@@ -203,6 +213,11 @@ def watch_lesson_batch(
             if shot_on_err:
                 session.screenshot(data_dir / f"fail_replay_{item.lesson_id}.png")
             log(f"[job] [FAIL] 本节失败 ({result.reason})")
+            if result.cancelled and result.local_ratio >= 0.02:
+                log(
+                    f"[job] 已保存中断进度约 {result.local_ratio*100:.1f}% "
+                    "（下次可续播）"
+                )
 
         if idx - 1 < len(remain_content):
             remain_content[idx - 1] = 0.0

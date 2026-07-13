@@ -24,12 +24,13 @@ from yuketang.logs import LogsApiError, normalize_attend_filter
 from yuketang.pending_ops import (
     DEFAULT_LESSON_SEC,
     enrich_duration_map,
+    filter_skip_local_complete,
     load_pending_for_classroom,
     normalize_job_action,
     reconcile_progress_with_platform,
     select_soft_targets,
 )
-from yuketang.progress import FailedStore, ProgressStore, SoftStore
+from yuketang.progress import FailedStore, PartialStore, ProgressStore, SoftStore
 from yuketang.rate import resolve_playback_rate
 from yuketang.settings import has_classroom, resolve_runtime, save_settings
 from yuketang.util import fmt_eta, origin_of, resolve_path
@@ -47,6 +48,7 @@ __all__ = [
     "clear_failed_store",
     "clear_progress_store",
     "enrich_duration_map",
+    "filter_skip_local_complete",
     "load_pending_for_classroom",
     "normalize_job_action",
     "reconcile_progress_with_platform",
@@ -92,6 +94,7 @@ def run_automation(
     progress_path = resolve_path(root, cfg.get("progress_file", "data/progress.json"))
     failed_path = resolve_path(root, cfg.get("failed_file", "data/failed.json"))
     soft_path = resolve_path(root, cfg.get("soft_file", "data/soft.json"))
+    partial_path = resolve_path(root, cfg.get("partial_file", "data/partial.json"))
     wait_login = int(cfg.get("wait_login_timeout_sec", 180))
     max_watch = int(cfg.get("max_watch_sec", 7200))
     complete_ratio = float(cfg.get("complete_ratio", 0.65))
@@ -100,6 +103,8 @@ def run_automation(
     soft_boost = float(cfg.get("soft_boost", 0.10))
     retry_per_lesson = max(0, int(cfg.get("retry_per_lesson", 1)))
     shot_on_err = bool(cfg.get("screenshot_on_error", True))
+    skip_local_on_all = bool(cfg.get("skip_local_complete_on_all", True))
+    resume_partial = bool(cfg.get("resume_partial", True))
     pause_cfg = cfg.get("pause_between_sec", [2, 6])
     if isinstance(pause_cfg, (list, tuple)) and len(pause_cfg) >= 2:
         pause_lo, pause_hi = float(pause_cfg[0]), float(pause_cfg[1])
@@ -109,6 +114,7 @@ def run_automation(
     progress = ProgressStore.load(progress_path, classroom_id=str(classroom_id))
     failed = FailedStore(failed_path)
     soft = SoftStore(soft_path)
+    partial = PartialStore(partial_path)
     data_dir = root / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     migrated = progress.migrate_to_namespaced(str(classroom_id))
@@ -190,6 +196,7 @@ def run_automation(
             }
 
         soft_ids = {s.lesson_id for s in soft.for_classroom(str(classroom_id))}
+        partial_map = partial.local_ratio_map(str(classroom_id))
         duration_map = enrich_duration_map(
             page,
             pending,
@@ -203,6 +210,7 @@ def run_automation(
                 "lesson_id": it.lesson_id,
                 "attend": bool(it.attend_status),
                 "soft": it.lesson_id in soft_ids,
+                "partial_pct": round(float(partial_map.get(it.lesson_id, 0.0)) * 100, 1),
                 "duration_sec": int(duration_map.get(it.lesson_id, DEFAULT_LESSON_SEC)),
                 "duration_min": round(
                     duration_map.get(it.lesson_id, DEFAULT_LESSON_SEC) / 60, 1
@@ -223,8 +231,10 @@ def run_automation(
         for i, it in enumerate(pending, 1):
             tag = "缺勤" if not it.attend_status else "已签到"
             soft_tag = " SOFT" if it.lesson_id in soft_ids else ""
+            pp = float(partial_map.get(it.lesson_id, 0.0))
+            part_tag = f" 续{pp*100:.0f}%" if pp >= 0.02 and it.lesson_id not in soft_ids else ""
             dm = duration_map.get(it.lesson_id, DEFAULT_LESSON_SEC) / 60
-            log(f"  {i}. [{tag}{soft_tag}] {it.title} (~{dm:.0f}分)")
+            log(f"  {i}. [{tag}{soft_tag}{part_tag}] {it.title} (~{dm:.0f}分)")
 
         STATE.pending_preview = pending_preview
         STATE.batch = {
@@ -298,7 +308,39 @@ def run_automation(
                     "pending": pending_preview,
                 }
         else:
-            targets = list(pending)
+            # all：默认跳过本地已达 complete_ratio（SOFT / partial）
+            targets, skipped_local = filter_skip_local_complete(
+                pending,
+                classroom_id=str(classroom_id),
+                complete_ratio=complete_ratio,
+                soft=soft,
+                partial_ratios=partial_map,
+                enabled=skip_local_on_all,
+            )
+            if skipped_local:
+                log(
+                    f"[job] 全部：跳过本地已达 ≥{complete_ratio*100:.0f}% 的 "
+                    f"{len(skipped_local)} 节（可用「仅 SOFT 再跑」补刷平台）"
+                )
+                for it, r in skipped_local[:8]:
+                    log(f"  - skip {getattr(it, 'title', it.lesson_id)} ({r*100:.0f}%)")
+                if len(skipped_local) > 8:
+                    log(f"  - …另 {len(skipped_local) - 8} 节")
+            if not targets and skipped_local:
+                return {
+                    "ok": True,
+                    "done": 0,
+                    "fail": 0,
+                    "soft_done": 0,
+                    "pending": pending_preview,
+                    "classroom_id": classroom_id,
+                    "message": (
+                        f"待办均已本地达 ≥{complete_ratio*100:.0f}%，已跳过 "
+                        f"{len(skipped_local)} 节；可用「仅 SOFT 再跑」"
+                    ),
+                    "finished": True,
+                    "skipped_local": len(skipped_local),
+                }
 
         est_wall = sum(
             (duration_map.get(it.lesson_id, DEFAULT_LESSON_SEC) * complete_ratio)
@@ -342,6 +384,8 @@ def run_automation(
             should_cancel=STATE.is_cancel_requested,
             duration_map=duration_map,
             update_state=True,
+            partial=partial,
+            resume_partial=resume_partial,
         )
         done_count = int(batch_result.get("done") or 0)
         fail_count = int(batch_result.get("fail") or 0)
@@ -354,7 +398,13 @@ def run_automation(
             )
             page.wait_for_timeout(800)
             reconcile_progress_with_platform(
-                page, classroom_id, progress, origin=origin, log=log, soft=soft
+                page,
+                classroom_id,
+                progress,
+                origin=origin,
+                log=log,
+                soft=soft,
+                partial=partial,
             )
         except Exception as e:
             log(f"[job] 结束对账跳过: {e}")

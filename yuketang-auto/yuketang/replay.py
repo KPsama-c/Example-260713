@@ -17,6 +17,7 @@ from yuketang.logs import (
     replay_segment_count,
 )
 from yuketang.player import dismiss_popups
+from yuketang.progress import PartialStore
 from yuketang.rate import clamp_rate
 from yuketang.urls import lesson_overview_url
 
@@ -178,6 +179,26 @@ def _progress_bar(pct: float, width: int = 18) -> str:
     return "#" * filled + "-" * (width - filled)
 
 
+def _seek_video(video: Locator, t: float) -> bool:
+    """真实 seek 到已观测过的时刻（续播，非跳播伪造）。"""
+    try:
+        ok = video.evaluate(
+            """(el, t) => {
+                try {
+                    const d = el.duration || 0;
+                    if (!d || !(t > 0)) return false;
+                    const target = Math.min(Math.max(0, t), Math.max(0, d - 1.5));
+                    el.currentTime = target;
+                    return true;
+                } catch (e) { return false; }
+            }""",
+            float(t),
+        )
+        return bool(ok)
+    except Exception:
+        return False
+
+
 def watch_replay(
     page: Page,
     *,
@@ -193,6 +214,8 @@ def watch_replay(
     should_cancel: Callable[[], bool] | None = None,
     confirm_grace_sec: int = 120,
     soft_boost: float = 0.10,
+    partial: PartialStore | None = None,
+    resume_partial: bool = True,
 ) -> ReplayResult:
     """打开 overview 并播到有效进度。
 
@@ -202,9 +225,60 @@ def watch_replay(
     返回 ReplayResult：仅 platform_confirmed=True 时上层应写入断点。
 
     播放过程中绝不 page.goto 离开 overview。
+    续播：仅 seek 到本机 partial 曾观测到的 currentTime（真实续播，不伪造心跳）。
     """
     def _cancelled() -> bool:
         return bool(should_cancel and should_cancel())
+
+    # 供退出时写 partial（循环内更新）
+    snap: dict[str, object] = {
+        "ratio": 0.0,
+        "watched": 0.0,
+        "denom": 0.0,
+        "seg_t": 0.0,
+        "seg_d": 0.0,
+        "finished": set(),
+        "segs_d": {},
+        "src_suffix": "",
+    }
+
+    def _clear_partial() -> None:
+        if partial is not None:
+            try:
+                partial.remove(str(classroom_id), str(lesson_id))
+            except Exception:
+                pass
+
+    def _save_partial_from_snap(ratio_v: float) -> None:
+        if partial is None or ratio_v < 0.02:
+            return
+        try:
+            fin = snap.get("finished") or []
+            if isinstance(fin, set):
+                fin_list = [str(x) for x in fin]
+            else:
+                fin_list = [str(x) for x in list(fin)]  # type: ignore[arg-type]
+            segs_raw = snap.get("segs_d") or {}
+            segs_map = (
+                {str(k): float(v) for k, v in segs_raw.items()}  # type: ignore[union-attr]
+                if isinstance(segs_raw, dict)
+                else {}
+            )
+            partial.upsert(
+                classroom_id=str(classroom_id),
+                lesson_id=str(lesson_id),
+                title=title or str(lesson_id),
+                local_ratio=float(ratio_v),
+                watched_sec=float(snap.get("watched") or 0),
+                total_sec=float(snap.get("denom") or 0),
+                segment_time=float(snap.get("seg_t") or 0),
+                segment_duration=float(snap.get("seg_d") or 0),
+                finished_keys=fin_list,
+                seg_durations=segs_map,
+                src_suffix=str(snap.get("src_suffix") or ""),
+            )
+        except Exception:
+            pass
 
     def _result(
         *,
@@ -214,6 +288,14 @@ def watch_replay(
         cancelled: bool = False,
         reason: str = "",
     ) -> ReplayResult:
+        thr = max(0.5, min(float(complete_ratio), 1.0))
+        if confirmed or (ok and not cancelled and ratio_v + 1e-9 >= thr):
+            _clear_partial()
+        elif cancelled or (not ok and ratio_v >= 0.02) or (
+            ok and not confirmed and ratio_v < thr and ratio_v >= 0.02
+        ):
+            # 取消 / 失败 / 未达线的 ok 边角 — 保留续播点
+            _save_partial_from_snap(ratio_v)
         if on_progress and (confirmed or cancelled or not ok):
             on_progress(
                 {
@@ -290,6 +372,7 @@ def watch_replay(
     last_basic_check = 0.0
     last_ui_check = 0.0
     last_rate_fix = 0.0
+    last_partial_save = 0.0
     started_at = time.time()
     segments_seen: set[str] = set()
     finished_keys: set[str] = set()
@@ -300,6 +383,49 @@ def watch_replay(
     progress = 0.0
     grace_until = 0.0  # >0 表示宽限中
     boosted = False
+
+    # 续播：恢复已观测段 + seek 到上次 segment_time（仅当播放器回到更早位置）
+    resume_item = None
+    if partial is not None and resume_partial:
+        resume_item = partial.get(str(classroom_id), str(lesson_id))
+    if resume_item is not None and float(resume_item.local_ratio or 0) >= 0.02:
+        for k in resume_item.finished_keys or []:
+            if k:
+                finished_keys.add(str(k))
+                segments_seen.add(str(k))
+        for k, v in (resume_item.seg_durations or {}).items():
+            try:
+                seg_durations[str(k)] = max(float(v), seg_durations.get(str(k), 0.0))
+            except (TypeError, ValueError):
+                pass
+        want_t = float(resume_item.segment_time or 0)
+        video0 = _find_video(page)
+        if video0 is not None and want_t > 3:
+            st0 = _video_stats(video0)
+            cur0 = float(st0.get("t") or 0)
+            # 仅在播放器进度明显落后于本机观测时 seek（避免向前跳未看内容）
+            if cur0 + 5.0 < want_t:
+                if _seek_video(video0, want_t):
+                    log(
+                        f"[replay] 续播 seek → {want_t:.0f}s"
+                        f"（本地曾达 {resume_item.local_ratio*100:.1f}%；真播放续上，非伪造）"
+                    )
+                    try:
+                        _apply_rate_muted(video0, rate)
+                    except Exception:
+                        pass
+                else:
+                    log("[replay] 续播 seek 失败，将从当前进度真播")
+            else:
+                log(
+                    f"[replay] 续播：播放器已在 {cur0:.0f}s"
+                    f"（本地记录 {resume_item.local_ratio*100:.1f}%）"
+                )
+        elif resume_item.local_ratio > 0.05:
+            log(
+                f"[replay] 续播：已恢复累计段进度"
+                f"（本地 {resume_item.local_ratio*100:.1f}%）"
+            )
 
     def _finished_sec() -> float:
         return sum(seg_durations[k] for k in finished_keys if k in seg_durations)
@@ -398,6 +524,14 @@ def watch_replay(
         watched_sec = finished_seg_sec + cur_extra
         denom = total_sec if total_sec > 0 else (sum(seg_durations.values()) or d or 1.0)
         progress = watched_sec / denom if denom > 0 else 0.0
+        snap["ratio"] = progress
+        snap["watched"] = watched_sec
+        snap["denom"] = denom
+        snap["seg_t"] = t
+        snap["seg_d"] = d
+        snap["finished"] = set(finished_keys)
+        snap["segs_d"] = dict(seg_durations)
+        snap["src_suffix"] = src_key
 
         if progress >= ratio and watched_sec > 5:
             # 达线：先 grace 继续真播 + 轮询；仍未确认则 soft_boost 抬高阈值
@@ -584,6 +718,11 @@ def watch_replay(
             last_log = now
         elif tick % 2 == 0 and on_progress:
             _emit(progress, watched_sec, denom, cur_rate, st)
+
+        # 周期性落盘 partial，便于崩溃/中断后续播
+        if partial is not None and progress >= 0.02 and now - last_partial_save > 12:
+            _save_partial_from_snap(progress)
+            last_partial_save = now
 
         page.wait_for_timeout(1000)
 

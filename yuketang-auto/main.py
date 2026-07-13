@@ -23,6 +23,7 @@ from yuketang.browser import BrowserSession
 from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
 from yuketang.doctor import format_doctor_report, run_doctor
 from yuketang.jobs import (
+    filter_skip_local_complete,
     load_pending_for_classroom,
     reconcile_progress_with_platform,
     run_automation,
@@ -31,7 +32,7 @@ from yuketang.jobs import (
 )
 from yuketang.login import ensure_login
 from yuketang.logs import LogsApiError, normalize_attend_filter
-from yuketang.progress import FailedStore, ProgressStore, SoftStore
+from yuketang.progress import FailedStore, PartialStore, ProgressStore, SoftStore
 from yuketang.rate import PRESETS, rate_help_text, resolve_playback_rate
 from yuketang.settings import (
     activate_profile,
@@ -294,6 +295,7 @@ def main() -> int:
     progress_path = resolve_path(ROOT, cfg.get("progress_file", "data/progress.json"))
     failed_path = resolve_path(ROOT, cfg.get("failed_file", "data/failed.json"))
     soft_path = resolve_path(ROOT, cfg.get("soft_file", "data/soft.json"))
+    partial_path = resolve_path(ROOT, cfg.get("partial_file", "data/partial.json"))
     wait_login = int(cfg.get("wait_login_timeout_sec", 180))
     max_watch = int(cfg.get("max_watch_sec", 7200))
     complete_ratio = float(cfg.get("complete_ratio", 0.65))
@@ -301,6 +303,8 @@ def main() -> int:
     soft_boost = float(cfg.get("soft_boost", 0.10))
     require_platform = bool(cfg.get("require_platform_confirm", True))
     shot_on_err = bool(cfg.get("screenshot_on_error", True))
+    skip_local_on_all = bool(cfg.get("skip_local_complete_on_all", True))
+    resume_partial = bool(cfg.get("resume_partial", True))
     pause_cfg = cfg.get("pause_between_sec", [2, 6])
     if isinstance(pause_cfg, (list, tuple)) and len(pause_cfg) >= 2:
         pause_lo, pause_hi = float(pause_cfg[0]), float(pause_cfg[1])
@@ -310,6 +314,7 @@ def main() -> int:
     progress = ProgressStore.load(progress_path, classroom_id=str(classroom_id))
     failed = FailedStore(failed_path)
     soft = SoftStore(soft_path)
+    partial = PartialStore(partial_path)
     data_dir = ROOT / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -482,7 +487,28 @@ def main() -> int:
                     continue
                 print(f"[main] 仅 SOFT 再跑：{len(pending)} 节")
 
-            targets = pending[:1] if action == "once" else list(pending)
+            if action == "once":
+                targets = pending[:1]
+            elif action == "soft":
+                targets = list(pending)
+            else:
+                targets, skipped_local = filter_skip_local_complete(
+                    pending,
+                    classroom_id=str(classroom_id),
+                    complete_ratio=complete_ratio,
+                    soft=soft,
+                    partial_ratios=partial.local_ratio_map(str(classroom_id)),
+                    enabled=skip_local_on_all,
+                )
+                if skipped_local:
+                    print(
+                        f"[main] 全部：跳过本地已达 ≥{complete_ratio*100:.0f}% 的 "
+                        f"{len(skipped_local)} 节（[9] 仅 SOFT 可补刷）"
+                    )
+                if not targets:
+                    if skipped_local:
+                        print("[main] 待办均已本地达线，已跳过；用 [9] 补刷平台确认")
+                    continue
             batch = watch_lesson_batch(
                 page,
                 session,
@@ -506,6 +532,8 @@ def main() -> int:
                 log=print,
                 should_cancel=None,
                 update_state=False,
+                partial=partial,
+                resume_partial=resume_partial,
             )
             done = int(batch.get("done") or 0)
             fail = int(batch.get("fail") or 0)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable
 
 from yuketang.job_state import LogFn
 from yuketang.logs import (
@@ -25,8 +25,11 @@ def reconcile_progress_with_platform(
     origin: str,
     log: LogFn,
     soft: SoftStore | None = None,
+    partial: "PartialStore | None" = None,
 ) -> dict[str, int]:
     """用平台 live_viewed 对账本地断点与 SOFT 列表。"""
+    from yuketang.progress import PartialStore  # noqa: F401 — typing/runtime optional
+
     added = 0
     removed = 0
     soft_promoted = 0
@@ -50,6 +53,8 @@ def reconcile_progress_with_platform(
             added += 1
             if soft:
                 soft.remove(cid, lid)
+            if partial is not None:
+                partial.remove(cid, lid)
 
     for key in list(progress.completed):
         from yuketang.util import parse_progress_key
@@ -77,6 +82,8 @@ def reconcile_progress_with_platform(
                     lesson_id=s.lesson_id,
                 )
                 soft.remove(cid, s.lesson_id)
+                if partial is not None:
+                    partial.remove(cid, s.lesson_id)
                 soft_promoted += 1
                 log(f"[progress] SOFT 转正: {s.title or s.lesson_id}")
 
@@ -91,6 +98,52 @@ def select_soft_targets(pending: list, soft: SoftStore, classroom_id: str) -> li
     """pending ∩ soft.json（本课仍待平台确认的节）。"""
     soft_ids = {s.lesson_id for s in soft.for_classroom(str(classroom_id))}
     return [it for it in pending if it.lesson_id in soft_ids]
+
+
+def local_complete_ratio_map(
+    soft: SoftStore | None,
+    classroom_id: str,
+    *,
+    partial_ratios: dict[str, float] | None = None,
+) -> dict[str, float]:
+    """lesson_id -> 本地已知最高比例（soft ∪ partial）。"""
+    out: dict[str, float] = {}
+    if soft is not None:
+        for s in soft.for_classroom(str(classroom_id)):
+            out[s.lesson_id] = max(out.get(s.lesson_id, 0.0), float(s.local_ratio or 0))
+    for lid, r in (partial_ratios or {}).items():
+        out[str(lid)] = max(out.get(str(lid), 0.0), float(r or 0))
+    return out
+
+
+def filter_skip_local_complete(
+    pending: list,
+    *,
+    classroom_id: str,
+    complete_ratio: float,
+    soft: SoftStore | None = None,
+    partial_ratios: dict[str, float] | None = None,
+    enabled: bool = True,
+) -> tuple[list, list[tuple[Any, float]]]:
+    """「全部」用：跳过本地已 ≥ complete_ratio 的节（SOFT/partial）。
+
+    返回 (保留列表, [(item, ratio), ...跳过])。
+    soft 动作 / 勾选观看 不要走此过滤。
+    """
+    if not enabled or not pending:
+        return list(pending), []
+    thr = max(0.0, min(float(complete_ratio), 1.0))
+    ratios = local_complete_ratio_map(soft, classroom_id, partial_ratios=partial_ratios)
+    kept: list = []
+    skipped: list[tuple[Any, float]] = []
+    for it in pending:
+        lid = str(getattr(it, "lesson_id", "") or "")
+        r = float(ratios.get(lid, 0.0))
+        if r + 1e-9 >= thr:
+            skipped.append((it, r))
+        else:
+            kept.append(it)
+    return kept, skipped
 
 
 def load_pending_for_classroom(

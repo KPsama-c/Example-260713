@@ -4,7 +4,7 @@
 
 > **免责声明**：[DISCLAIMER.md](./DISCLAIMER.md) · 非官方 · 仅限本人账号 · 风险自负  
 > **范围**：只做观看回放；**不**签到、**不**答题  
-> **版本**：0.8.9
+> **版本**：0.9.0
 
 ---
 
@@ -54,6 +54,7 @@ python main.py --id 你的classroom_id --list-only --headed
 | 仅本机自用 | Cookie / 断点在 `data/`，永不进仓、不进纯净包 |
 
 断点键：`classroom_id:lesson_id`。SOFT 记入 `data/soft.json`，对账后转正。  
+**全部观看**默认跳过本地已达线（≥`complete_ratio`，含 SOFT）；未达线中断写入 `data/partial.json`，下次**真 seek 续播**。补刷平台用「仅 SOFT 再跑」。  
 建议倍速 **≤1.5**；过高易导致平台不认、SOFT 增多。
 
 ---
@@ -128,7 +129,8 @@ python main.py --list-rates
 | forbidden / 空列表 | 用错 ID，应使用 **classroom_id**；点「刷新我的班级」 |
 | 进度不涨 | `--rate 1.0` 或页面改倍速；确认有界面首次登录 |
 | 登录超时 | 有界面模式；删除坏掉的 `storage_state` 后重登 |
-| 本地达标但下次仍出现 | 平台未确认（SOFT）；继续播或略提高 `complete_ratio` |
+| 本地达标但下次仍出现 | 平台未确认（SOFT）；「全部」会跳过，用「仅 SOFT 再跑」补刷 |
+| 中途取消后从头播 | 确认 `resume_partial: true`；看日志是否有「续播 seek」 |
 | 任务中无法切换配置档 | 先 **停止**，再切换 |
 | Windows 控制台乱码 | 用 Web 控制台（推荐） |
 | 依赖缺失 | `pip install -r requirements.txt` 后 `playwright install chromium` |

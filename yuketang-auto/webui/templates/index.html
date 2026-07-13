@@ -779,12 +779,16 @@
           ? '<span class="tag present">已签到</span>'
           : '<span class="tag absent">缺勤</span>';
         const soft = it.soft ? '<span class="tag" style="background:#422006;color:#fbbf24">SOFT</span>' : "";
+        const pp = Number(it.partial_pct || 0);
+        const part = (!it.soft && pp >= 2)
+          ? `<span class="tag" style="background:#1e3a5f;color:#93c5fd">续${pp.toFixed(0)}%</span>`
+          : "";
         const dur = it.duration_min != null ? ` ~${it.duration_min}分` : "";
         const checked = prevSel.has(lid) ? " checked" : "";
         li.innerHTML =
           `<label style="display:flex;align-items:center;gap:8px;width:100%;cursor:pointer">` +
           `<input type="checkbox" class="lesson-cb" value="${escapeHtml(lid)}"${checked} />` +
-          `${tag}${soft}<strong style="flex:1">${i + 1}. ${escapeHtml(it.title || "")}</strong>` +
+          `${tag}${soft}${part}<strong style="flex:1">${i + 1}. ${escapeHtml(it.title || "")}</strong>` +
           `<span style="color:var(--muted);font-size:0.76rem">${escapeHtml(dur)}</span></label>`;
         pendingEl.appendChild(li);
       });

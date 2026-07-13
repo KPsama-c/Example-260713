@@ -302,6 +302,146 @@ class SoftStore:
 
 
 @dataclass
+class PartialItem:
+    """单节中断进度（真实播放观测值，用于续播 seek，非伪造心跳）。"""
+
+    key: str
+    classroom_id: str
+    lesson_id: str
+    title: str
+    local_ratio: float
+    watched_sec: float = 0.0
+    total_sec: float = 0.0
+    segment_time: float = 0.0
+    segment_duration: float = 0.0
+    finished_keys: list[str] = field(default_factory=list)
+    seg_durations: dict[str, float] = field(default_factory=dict)
+    src_suffix: str = ""
+    at: str = field(default_factory=_now)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+class PartialStore:
+    """未达 complete_ratio 的中断进度；达线后一般转 soft 并清除。"""
+
+    def __init__(self, path: str | Path) -> None:
+        self.path = Path(path)
+        self.items: list[PartialItem] = []
+        if self.path.exists():
+            try:
+                raw = json.loads(self.path.read_text(encoding="utf-8"))
+                for it in raw.get("items") or []:
+                    fk = it.get("finished_keys") or []
+                    sd = it.get("seg_durations") or {}
+                    if not isinstance(sd, dict):
+                        sd = {}
+                    self.items.append(
+                        PartialItem(
+                            key=str(it.get("key") or ""),
+                            classroom_id=str(it.get("classroom_id") or ""),
+                            lesson_id=str(it.get("lesson_id") or ""),
+                            title=str(it.get("title") or ""),
+                            local_ratio=float(it.get("local_ratio") or 0),
+                            watched_sec=float(it.get("watched_sec") or 0),
+                            total_sec=float(it.get("total_sec") or 0),
+                            segment_time=float(it.get("segment_time") or 0),
+                            segment_duration=float(it.get("segment_duration") or 0),
+                            finished_keys=[str(x) for x in fk],
+                            seg_durations={str(k): float(v) for k, v in sd.items()},
+                            src_suffix=str(it.get("src_suffix") or ""),
+                            at=str(it.get("at") or _now()),
+                        )
+                    )
+            except (json.JSONDecodeError, OSError, TypeError, ValueError):
+                pass
+
+    def get(self, classroom_id: str, lesson_id: str) -> PartialItem | None:
+        cid, lid = str(classroom_id), str(lesson_id)
+        for x in self.items:
+            if x.classroom_id == cid and x.lesson_id == lid:
+                return x
+        return None
+
+    def upsert(
+        self,
+        *,
+        classroom_id: str,
+        lesson_id: str,
+        title: str,
+        local_ratio: float,
+        watched_sec: float = 0.0,
+        total_sec: float = 0.0,
+        segment_time: float = 0.0,
+        segment_duration: float = 0.0,
+        finished_keys: list[str] | None = None,
+        seg_durations: dict[str, float] | None = None,
+        src_suffix: str = "",
+    ) -> None:
+        key = progress_key(classroom_id, lesson_id)
+        self.items = [
+            x
+            for x in self.items
+            if not (x.classroom_id == str(classroom_id) and x.lesson_id == str(lesson_id))
+        ]
+        self.items.append(
+            PartialItem(
+                key=key,
+                classroom_id=str(classroom_id),
+                lesson_id=str(lesson_id),
+                title=title,
+                local_ratio=float(local_ratio),
+                watched_sec=float(watched_sec),
+                total_sec=float(total_sec),
+                segment_time=float(segment_time),
+                segment_duration=float(segment_duration),
+                finished_keys=list(finished_keys or []),
+                seg_durations=dict(seg_durations or {}),
+                src_suffix=str(src_suffix or ""),
+            )
+        )
+        self.save()
+
+    def remove(self, classroom_id: str, lesson_id: str) -> bool:
+        n0 = len(self.items)
+        self.items = [
+            x
+            for x in self.items
+            if not (x.classroom_id == str(classroom_id) and x.lesson_id == str(lesson_id))
+        ]
+        if len(self.items) != n0:
+            self.save()
+            return True
+        return False
+
+    def for_classroom(self, classroom_id: str) -> list[PartialItem]:
+        cid = str(classroom_id)
+        return [x for x in self.items if x.classroom_id == cid]
+
+    def local_ratio_map(self, classroom_id: str) -> dict[str, float]:
+        return {x.lesson_id: float(x.local_ratio) for x in self.for_classroom(classroom_id)}
+
+    def clear(self) -> int:
+        n = len(self.items)
+        self.items = []
+        self.save()
+        return n
+
+    def save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "items": [i.to_dict() for i in self.items],
+            "updated_at": _now(),
+            "version": 1,
+        }
+        self.path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+
+@dataclass
 class FailedItem:
     key: str
     title: str

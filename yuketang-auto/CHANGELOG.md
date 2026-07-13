@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0] - 2026-07-13
+
+### 全部跳过 + 续播
+- **全部观看**：默认跳过本地已达 `complete_ratio`（SOFT / partial）的节；「仅 SOFT 再跑」/勾选仍会重试
+- **中断续播**：`data/partial.json` 记录真实播放观测进度；取消/失败后再次打开会 seek 到上次位置（非伪造心跳）
+- 配置：`skip_local_complete_on_all`、`resume_partial`、`partial_file`
+
 ## [0.8.9] - 2026-07-13
 
 ### 结构
