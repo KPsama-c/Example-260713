@@ -206,7 +206,7 @@
         <h2><span class="dot"></span> 配置与任务</h2>
         <form id="cfgForm" onsubmit="return false;">
           <label for="classroom_id">classroom_id（不是 course_id）</label>
-          <input id="classroom_id" type="text" placeholder="例如 27586609" value="{{ classroom_id }}" />
+          <input id="classroom_id" type="text" placeholder="例如 YOUR_CLASSROOM_ID" value="{{ classroom_id }}" />
 
           <label for="course_url">或学习日志 URL</label>
           <input id="course_url" type="text" placeholder="https://www.yuketang.cn/v2/web/studentLog/..." value="{{ course_url }}" />
@@ -230,6 +230,7 @@
 
           <div class="checks">
             <label><input type="checkbox" id="headless" {% if headless %}checked{% endif %} /> 无头模式（首次登录勿勾）</label>
+            <label><input type="checkbox" id="acceptRisk" /> 我已阅读 <a href="/disclaimer" target="_blank" style="color:var(--accent)">免责声明</a>，仅自用、后果自负</label>
           </div>
 
           <label style="margin-top:12px">观看范围（只处理未看回放）</label>
@@ -244,6 +245,7 @@
             <button type="button" class="btn-primary" id="btnList">刷新待办</button>
             <button type="button" class="btn-amber" id="btnOnce">下一节</button>
             <button type="button" class="btn-green" id="btnAll">全部观看</button>
+            <button type="button" class="btn-purple" id="btnSelected">观看勾选</button>
             <button type="button" class="btn-purple" id="btnAllAbsent">仅缺勤·全部</button>
             <button type="button" class="btn-danger" id="btnStop" disabled>停止</button>
           </div>
@@ -268,6 +270,8 @@
           70 分钟课 1.25x 刷到 65% 约 <b>35 分钟墙钟</b>。日志「播放中 [##--…]」即正常。本地达标但平台未确认不会写断点。
         </div>
 
+        <div id="doneBanner" style="display:none;margin:10px 0;padding:10px 12px;border-radius:10px;border:1px solid #166534;background:#052e16;color:#86efac;font-size:0.9rem"></div>
+
         <div class="progress-wrap" id="progressWrap">
           <div class="progress-title" id="progressTitle">—</div>
           <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
@@ -281,12 +285,22 @@
           </div>
         </div>
 
-        <div style="font-size:0.84rem;color:var(--muted);margin-bottom:6px">待办预览</div>
+        <div style="font-size:0.84rem;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <span>待办预览（可勾选后「观看勾选」）</span>
+          <span style="display:flex;gap:8px">
+            <button type="button" class="btn-ghost" id="btnSelAll" style="font-size:0.75rem;padding:4px 8px">全选</button>
+            <button type="button" class="btn-ghost" id="btnSelNone" style="font-size:0.75rem;padding:4px 8px">清空</button>
+          </span>
+        </div>
         <ul id="pending"></ul>
 
         <div class="log-head">
           <span>实时日志</span>
-          <span id="logMeta">0 行 · 自动滚动</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="btn-ghost" id="btnLogStick" style="font-size:0.72rem;padding:3px 8px">暂停滚动</button>
+            <button type="button" class="btn-ghost" id="btnLogCopy" style="font-size:0.72rem;padding:3px 8px">复制</button>
+            <span id="logMeta">0 行 · 自动滚动</span>
+          </span>
         </div>
         <div id="log"></div>
       </section>
@@ -305,10 +319,28 @@
     const pendingEl = $("pending");
     let logCursor = 0;  // 已消费的 log_len
     let stickBottom = true;
+    let wasRunning = false;
+    const RISK_KEY = "yuketang_accept_risk_v1";
+
+    try {
+      if (localStorage.getItem(RISK_KEY) === "1" && $("acceptRisk")) {
+        $("acceptRisk").checked = true;
+      }
+    } catch (e) { /* ignore */ }
+    if ($("acceptRisk")) {
+      $("acceptRisk").addEventListener("change", () => {
+        try {
+          localStorage.setItem(RISK_KEY, $("acceptRisk").checked ? "1" : "0");
+        } catch (e) { /* ignore */ }
+      });
+    }
 
     logEl.addEventListener("scroll", () => {
       const near = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40;
       stickBottom = near;
+      if ($("btnLogStick")) {
+        $("btnLogStick").textContent = stickBottom ? "暂停滚动" : "恢复滚动";
+      }
     });
 
     function toast(msg) {
@@ -336,10 +368,16 @@
     }
 
     function setRunButtons(running) {
-      ["btnList", "btnOnce", "btnAll", "btnAllAbsent"].forEach((id) => {
-        $(id).disabled = !!running;
+      ["btnList", "btnOnce", "btnAll", "btnAllAbsent", "btnSelected", "btnSelAll", "btnSelNone"].forEach((id) => {
+        if ($(id)) $(id).disabled = !!running;
       });
       $("btnStop").disabled = !running;
+    }
+
+    function selectedLessonIds() {
+      return Array.from(document.querySelectorAll("#pending input.lesson-cb:checked"))
+        .map((el) => el.value)
+        .filter(Boolean);
     }
 
     async function saveConfig() {
@@ -356,14 +394,20 @@
       return true;
     }
 
-    async function runAction(action, filterOverride) {
+    async function runAction(action, filterOverride, lessonIds) {
+      if (!$("acceptRisk").checked) {
+        toast("请先勾选同意免责声明");
+        return;
+      }
       const ok = await saveConfig();
       if (!ok) return;
       const attend_filter = filterOverride || selectedFilter();
+      const body = { action, attend_filter, accept_risk: true };
+      if (lessonIds && lessonIds.length) body.lesson_ids = lessonIds;
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, attend_filter }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       toast(data.message || (data.ok ? "已启动" : "失败"));
@@ -470,13 +514,43 @@
       setRunButtons(!!s.running);
       renderProgress(s);
 
+      // 任务结束横幅
+      const banner = $("doneBanner");
+      if (s.running) {
+        wasRunning = true;
+        if (banner) banner.style.display = "none";
+      } else if (wasRunning && s.message && !s.running) {
+        wasRunning = false;
+        if (banner) {
+          const soft = s.soft_done || 0;
+          banner.style.display = "block";
+          banner.textContent =
+            `任务结束：确认 ${s.done || 0} · 未确认 ${soft} · 失败 ${s.fail || 0} — ${s.message || ""}`;
+        }
+        try {
+          if (window.Notification && Notification.permission === "granted") {
+            new Notification("雨课堂任务结束", { body: s.message || "" });
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      // 保留勾选状态
+      const prevSel = new Set(selectedLessonIds());
       pendingEl.innerHTML = "";
       (s.pending_preview || []).forEach((it, i) => {
         const li = document.createElement("li");
+        const lid = String(it.lesson_id || "");
         const tag = it.attend
           ? '<span class="tag present">已签到</span>'
           : '<span class="tag absent">缺勤</span>';
-        li.innerHTML = `${tag}<strong>${i + 1}. ${escapeHtml(it.title || "")}</strong>`;
+        const soft = it.soft ? '<span class="tag" style="background:#422006;color:#fbbf24">SOFT</span>' : "";
+        const dur = it.duration_min != null ? ` ~${it.duration_min}分` : "";
+        const checked = prevSel.has(lid) ? " checked" : "";
+        li.innerHTML =
+          `<label style="display:flex;align-items:center;gap:8px;width:100%;cursor:pointer">` +
+          `<input type="checkbox" class="lesson-cb" value="${escapeHtml(lid)}"${checked} />` +
+          `${tag}${soft}<strong style="flex:1">${i + 1}. ${escapeHtml(it.title || "")}</strong>` +
+          `<span style="color:var(--muted);font-size:0.76rem">${escapeHtml(dur)}</span></label>`;
         pendingEl.appendChild(li);
       });
 
@@ -539,14 +613,51 @@
       if (!confirm("将连续观看全部待办，单节可能需数十分钟。确定？")) return;
       runAction("all");
     };
+    $("btnSelected").onclick = () => {
+      const ids = selectedLessonIds();
+      if (!ids.length) { toast("请先勾选课程"); return; }
+      if (!confirm(`将观看已勾选 ${ids.length} 节？`)) return;
+      runAction("selected", null, ids);
+    };
+    $("btnSelAll").onclick = () => {
+      document.querySelectorAll("#pending input.lesson-cb").forEach((el) => { el.checked = true; });
+    };
+    $("btnSelNone").onclick = () => {
+      document.querySelectorAll("#pending input.lesson-cb").forEach((el) => { el.checked = false; });
+    };
     $("btnAllAbsent").onclick = () => {
       document.querySelector('input[name="attend_filter"][value="absent"]').checked = true;
       if (!confirm("仅观看缺勤且未看回放的全部课程？")) return;
       runAction("all", "absent");
     };
-    $("btnStop").onclick = () => stopJob();
+    $("btnStop").onclick = () => {
+      if (!confirm("确定停止当前任务？（本节会尽快结束）")) return;
+      stopJob();
+    };
     $("btnClearProg").onclick = () => clearProgress();
     $("btnClearFail").onclick = () => clearFailed();
+    if ($("btnLogStick")) {
+      $("btnLogStick").onclick = () => {
+        stickBottom = !stickBottom;
+        $("btnLogStick").textContent = stickBottom ? "暂停滚动" : "恢复滚动";
+        if (stickBottom) logEl.scrollTop = logEl.scrollHeight;
+      };
+    }
+    if ($("btnLogCopy")) {
+      $("btnLogCopy").onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(logEl.innerText || "");
+          toast("日志已复制");
+        } catch (e) {
+          toast("复制失败");
+        }
+      };
+    }
+    try {
+      if (window.Notification && Notification.permission === "default") {
+        // 不主动弹权限，用户首次跑完前可在控制台授权；保留 API
+      }
+    } catch (e) { /* ignore */ }
 
     (function restoreFilter() {
       const v = "{{ attend_filter|default('all') }}";

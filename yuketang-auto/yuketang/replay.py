@@ -191,13 +191,17 @@ def watch_replay(
     on_progress: Callable[[dict], None] | None = None,
     title: str = "",
     should_cancel: Callable[[], bool] | None = None,
+    confirm_grace_sec: int = 120,
+    soft_boost: float = 0.10,
 ) -> ReplayResult:
     """打开 overview 并播到有效进度。
 
-    complete_ratio：相对整节总时长的本地停播线（默认 65%）。
+    complete_ratio：本地阈值（默认 65%）。
+    confirm_grace_sec：达线后继续真实播放并轮询平台确认的宽限秒数。
+    soft_boost：未确认时再往上播的比例（如 0.10 → 最高 min(ratio+0.10, 0.95)）。
     返回 ReplayResult：仅 platform_confirmed=True 时上层应写入断点。
 
-    播放过程中绝不 page.goto 离开 overview（完成检查 allow_navigation=False）。
+    播放过程中绝不 page.goto 离开 overview。
     """
     def _cancelled() -> bool:
         return bool(should_cancel and should_cancel())
@@ -269,7 +273,14 @@ def watch_replay(
         return _result(ok=False, reason="no_video")
 
     rate = clamp_rate(rate)
-    log(f"[replay] 正在播放 @ {rate}x(静音) 目标 {complete_ratio*100:.0f}% 工作中...")
+    primary_ratio = max(0.5, min(float(complete_ratio), 1.0))
+    boost_cap = max(0.0, min(float(soft_boost), 0.40))
+    max_ratio = min(primary_ratio + boost_cap, 0.95)
+    grace_sec = max(0, int(confirm_grace_sec))
+    log(
+        f"[replay] 正在播放 @ {rate}x(静音) 目标 {primary_ratio*100:.0f}%"
+        f" grace={grace_sec}s boost至{max_ratio*100:.0f}% 工作中..."
+    )
 
     deadline = time.time() + max_watch_sec
     last_t = -1.0
@@ -284,9 +295,11 @@ def watch_replay(
     finished_keys: set[str] = set()
     seg_durations: dict[str, float] = {}
     ended_streak = 0
-    ratio = max(0.5, min(float(complete_ratio), 1.0))
+    ratio = primary_ratio  # 当前生效阈值（可达 boost）
     tick = 0
     progress = 0.0
+    grace_until = 0.0  # >0 表示宽限中
+    boosted = False
 
     def _finished_sec() -> float:
         return sum(seg_durations[k] for k in finished_keys if k in seg_durations)
@@ -296,6 +309,7 @@ def watch_replay(
         remain_content = remain_ratio * denom if denom > 0 else 0.0
         eta = remain_content / max(cur_rate, 0.5)
         elapsed = time.time() - started_at
+        phase = "grace" if grace_until > time.time() else "playing"
         if on_progress:
             on_progress(
                 {
@@ -310,7 +324,7 @@ def watch_replay(
                     "paused": bool(st.get("paused")),
                     "segs": len(segments_seen),
                     "elapsed_sec": int(elapsed),
-                    "phase": "playing",
+                    "phase": phase,
                     "total_sec_est": total_sec,
                 }
             )
@@ -386,40 +400,57 @@ def watch_replay(
         progress = watched_sec / denom if denom > 0 else 0.0
 
         if progress >= ratio and watched_sec > 5:
-            log(
-                f"[replay] 本地已达 {progress*100:.1f}% "
-                f"({watched_sec/60:.1f}/{denom/60:.1f} 分钟, 阈值 {ratio*100:.0f}%)"
-            )
-            page.wait_for_timeout(2500)
-            confirmed = _confirm_now()
-            # 再等几轮 basic-info 同步
-            if not confirmed:
-                log("[replay] 等待平台同步完成态...")
-                for _ in range(4):
-                    if _cancelled():
-                        return _result(
-                            ok=False, cancelled=True, ratio_v=progress, reason="cancelled"
-                        )
-                    page.wait_for_timeout(3000)
-                    if basic_info_finish_replay(page, lesson_id, origin=origin) is True:
-                        confirmed = True
-                        break
-                    if page_shows_replay_done(page) is True:
-                        confirmed = True
-                        break
-            if confirmed:
-                log("[replay] 平台已确认完成态 [OK]")
-            else:
+            # 达线：先 grace 继续真播 + 轮询；仍未确认则 soft_boost 抬高阈值
+            if grace_until <= 0:
                 log(
-                    "[replay] 本地达标但平台未确认 — 不写断点，下次 list 仍会出现 "
-                    "(可稍后重跑或提高 complete_ratio)"
+                    f"[replay] 本地已达 {progress*100:.1f}% "
+                    f"({watched_sec/60:.1f}/{denom/60:.1f} 分钟, 阈值 {ratio*100:.0f}%)"
                 )
-            return _result(
-                ok=True,
-                confirmed=confirmed,
-                ratio_v=progress,
-                reason="local_threshold" if not confirmed else "confirmed",
-            )
+                page.wait_for_timeout(1500)
+                if _confirm_now():
+                    log("[replay] 平台已确认完成态 [OK]")
+                    return _result(
+                        ok=True, confirmed=True, ratio_v=progress, reason="confirmed"
+                    )
+                if grace_sec > 0:
+                    grace_until = time.time() + grace_sec
+                    log(
+                        f"[replay] 进入确认宽限 {_fmt_eta(grace_sec)} "
+                        "（继续播放并轮询平台，不跳播）"
+                    )
+                else:
+                    grace_until = time.time()  # 立即走 boost/结束分支
+
+            if grace_until > time.time():
+                # 宽限中：保持播放，周期性确认在循环顶部已做
+                pass
+            else:
+                # 宽限结束
+                if _confirm_now():
+                    log("[replay] 宽限内平台已确认 [OK]")
+                    return _result(
+                        ok=True, confirmed=True, ratio_v=progress, reason="grace_confirmed"
+                    )
+                if not boosted and max_ratio > ratio + 0.001:
+                    boosted = True
+                    old = ratio
+                    ratio = max_ratio
+                    grace_until = 0.0
+                    log(
+                        f"[replay] 平台未确认，提升目标 {old*100:.0f}% -> {ratio*100:.0f}% "
+                        "继续真实播放 (soft_boost)"
+                    )
+                else:
+                    log(
+                        "[replay] 本地达标但平台未确认 — 不写断点 (SOFT)，"
+                        "下次 list 仍会出现 / 结束时对账"
+                    )
+                    return _result(
+                        ok=True,
+                        confirmed=False,
+                        ratio_v=progress,
+                        reason="local_threshold_soft",
+                    )
 
         segment_done = d > 0 and (bool(st.get("ended")) or t / d >= _SEGMENT_END_RATIO)
         if segment_done:

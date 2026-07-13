@@ -135,8 +135,12 @@ def api_run():
     if action in ("all_absent", "list_absent", "once_absent"):
         attend_filter = "absent"
         action = action.replace("_absent", "")
-    if action not in ("list", "once", "all"):
-        return jsonify({"ok": False, "message": "action 必须是 list/once/all"}), 400
+    if action not in ("list", "once", "all", "selected"):
+        return jsonify({"ok": False, "message": "action 必须是 list/once/all/selected"}), 400
+
+    # 观看类任务需前端勾选免责（list 仅刷新待办也要求，强化知情）
+    if not data.get("accept_risk"):
+        return jsonify({"ok": False, "message": "请先勾选同意免责声明"}), 400
 
     cfg = load_settings(CONFIG_PATH)
     if not has_classroom(cfg):
@@ -144,8 +148,16 @@ def api_run():
 
     if attend_filter is None:
         attend_filter = cfg.get("attend_filter", "all")
+    raw_ids = data.get("lesson_ids") or []
+    lesson_ids = [str(x) for x in raw_ids if x] if isinstance(raw_ids, list) else []
+    if action == "selected" and not lesson_ids:
+        return jsonify({"ok": False, "message": "请先勾选要观看的课程"}), 400
     ok, msg = start_job_async(
-        root=ROOT, cfg=cfg, action=action, attend_filter=str(attend_filter)
+        root=ROOT,
+        cfg=cfg,
+        action=action,
+        attend_filter=str(attend_filter),
+        lesson_ids=lesson_ids or None,
     )
     code = 200 if ok else 409
     return jsonify({"ok": ok, "message": msg}), code

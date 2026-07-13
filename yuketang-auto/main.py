@@ -15,7 +15,6 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
@@ -24,9 +23,10 @@ if str(ROOT) not in sys.path:
 from yuketang import __version__
 from yuketang.browser import BrowserSession
 from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
+from yuketang.jobs import run_automation
 from yuketang.login import ensure_login
 from yuketang.logs import LogsApiError, list_pending_replays, normalize_attend_filter
-from yuketang.progress import FailedStore, ProgressStore
+from yuketang.progress import FailedStore, ProgressStore, SoftStore
 from yuketang.rate import PRESETS, rate_help_text, resolve_playback_rate
 from yuketang.replay import watch_replay
 from yuketang.settings import (
@@ -46,22 +46,9 @@ from yuketang.ui import (
     settings_submenu,
     wizard_first_run,
 )
+from yuketang.util import origin_of, progress_key, resolve_path
 
 DISCLAIMER_FILE = ROOT / "DISCLAIMER.md"
-
-
-def resolve_path(base: Path, p: str | Path) -> Path:
-    path = Path(p)
-    if path.is_absolute():
-        return path
-    return (base / path).resolve()
-
-
-def origin_of(url: str) -> str:
-    p = urlparse(url)
-    if p.scheme and p.netloc:
-        return f"{p.scheme}://{p.netloc}"
-    return "https://www.yuketang.cn"
 
 
 def print_banner() -> None:
@@ -167,16 +154,23 @@ def run_watch_batch(
     max_watch: int,
     progress: ProgressStore,
     failed: FailedStore,
+    soft: SoftStore,
     data_dir: Path,
     shot_on_err: bool,
     pause_lo: float,
     pause_hi: float,
-) -> tuple[int, int]:
+    confirm_grace_sec: int = 120,
+    soft_boost: float = 0.10,
+    require_platform: bool = True,
+) -> tuple[int, int, int]:
+    """返回 (平台确认数, 失败数, soft数)。菜单会话内复用浏览器。"""
     done_count = 0
     fail_count = 0
+    soft_count = 0
     if not pending:
-        return 0, 0
+        return 0, 0, 0
     targets = pending[: limit if limit > 0 else len(pending)]
+    cid = str(classroom_id)
     for idx, item in enumerate(targets, 1):
         print("-" * 56)
         print(f"[main] ({idx}/{len(targets)}) {item.title}")
@@ -191,23 +185,40 @@ def run_watch_batch(
             max_watch_sec=max_watch,
             log=print,
             title=item.title,
+            confirm_grace_sec=confirm_grace_sec,
+            soft_boost=soft_boost,
         )
+        pkey = progress_key(cid, item.lesson_id)
         if result.platform_confirmed:
-            progress.mark_done(item.key, item.title)
+            progress.mark_done(
+                pkey, item.title, classroom_id=cid, lesson_id=item.lesson_id
+            )
+            soft.remove(cid, item.lesson_id)
             done_count += 1
             session.save_state()
             print("[main] [OK] 平台已确认，已写入断点")
         elif result.ok:
-            # 默认不写断点，避免漏刷
             session.save_state()
-            print(
-                f"[main] [SOFT] 本地 {result.local_ratio*100:.1f}% 但平台未确认，未写断点"
-            )
-            # 仍计为「完成播放」但不增加 fail
-            done_count += 1
+            if require_platform:
+                soft.add(
+                    classroom_id=cid,
+                    lesson_id=item.lesson_id,
+                    title=item.title,
+                    local_ratio=result.local_ratio,
+                )
+                soft_count += 1
+                print(
+                    f"[main] [SOFT] 本地 {result.local_ratio*100:.1f}% 但平台未确认，未写断点"
+                )
+            else:
+                progress.mark_done(
+                    pkey, item.title, classroom_id=cid, lesson_id=item.lesson_id
+                )
+                done_count += 1
+                print("[main] [OK] 本地达标已写断点（require_platform_confirm=false）")
         else:
             fail_count += 1
-            failed.add(item.key, item.title, result.reason or "watch_replay failed")
+            failed.add(pkey, item.title, result.reason or "watch_replay failed")
             if shot_on_err:
                 session.screenshot(data_dir / f"fail_replay_{item.lesson_id}.png")
             print(f"[main] [FAIL] 本节失败 ({result.reason})")
@@ -216,7 +227,7 @@ def run_watch_batch(
             print(f"[main] 休息 {delay:.1f}s …")
             time.sleep(delay)
     session.save_state()
-    return done_count, fail_count
+    return done_count, fail_count, soft_count
 
 
 def ensure_resolved_classroom(
@@ -264,7 +275,7 @@ def fetch_pending(
     return list_pending_replays(
         page,
         classroom_id,
-        progress_keys=set(progress.completed),
+        progress_keys=progress.keys_for_lookup(str(classroom_id)),
         origin=origin,
         attend_filter=attend_filter,
         log=print,
@@ -355,9 +366,13 @@ def main() -> int:
     storage = resolve_path(ROOT, cfg.get("storage_state", "data/storage_state.json"))
     progress_path = resolve_path(ROOT, cfg.get("progress_file", "data/progress.json"))
     failed_path = resolve_path(ROOT, cfg.get("failed_file", "data/failed.json"))
+    soft_path = resolve_path(ROOT, cfg.get("soft_file", "data/soft.json"))
     wait_login = int(cfg.get("wait_login_timeout_sec", 180))
     max_watch = int(cfg.get("max_watch_sec", 7200))
     complete_ratio = float(cfg.get("complete_ratio", 0.65))
+    confirm_grace_sec = int(cfg.get("confirm_grace_sec", 120))
+    soft_boost = float(cfg.get("soft_boost", 0.10))
+    require_platform = bool(cfg.get("require_platform_confirm", True))
     shot_on_err = bool(cfg.get("screenshot_on_error", True))
     pause_cfg = cfg.get("pause_between_sec", [2, 6])
     if isinstance(pause_cfg, (list, tuple)) and len(pause_cfg) >= 2:
@@ -365,8 +380,9 @@ def main() -> int:
     else:
         pause_lo, pause_hi = 2.0, 6.0
 
-    progress = ProgressStore.load(progress_path)
+    progress = ProgressStore.load(progress_path, classroom_id=str(classroom_id))
     failed = FailedStore(failed_path)
+    soft = SoftStore(soft_path)
     data_dir = ROOT / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -378,7 +394,7 @@ def main() -> int:
     print(f" complete≥    : {complete_ratio*100:.0f}%")
     print("-" * 56)
 
-    # 直接模式：list / once / all
+    # 直接模式：委托 jobs.run_automation（与 Web 同一可靠核心）
     if direct:
         if args.list_only:
             action = "list"
@@ -386,69 +402,20 @@ def main() -> int:
             action = "once"
         else:
             action = "all"
-
-        with BrowserSession(headless=headless, storage_state=storage) as session:
-            page = session.page
-            assert page is not None
-            ok_login, course_url = ensure_login(
-                page,
-                course_url=course_url,
-                timeout_sec=wait_login,
-                log=print,
-                candidate_urls=url_candidates,
-            )
-            if not ok_login:
-                if shot_on_err:
-                    session.screenshot(data_dir / "login_timeout.png")
-                return 1
-            session.save_state()
-            origin = origin_of(page.url or course_url)
-            fixed = ensure_resolved_classroom(
-                page,
-                classroom_id,
-                cfg=cfg,
-                cfg_path=cfg_path,
-                origin=origin,
-                auto_save=auto_save,
-            )
-            if not fixed:
-                return 2
-            classroom_id = fixed
-            af = normalize_attend_filter(cfg.get("attend_filter", "all"))
-            try:
-                pending = fetch_pending(
-                    page, classroom_id, origin, progress, attend_filter=af
-                )
-            except LogsApiError as e:
-                print(f"[!] {e}")
-                return 2
-            print_pending(pending)
-            if action == "list":
-                return 0
-            if not pending:
-                return 0
-            limit = 1 if action == "once" else (max_videos if max_videos > 0 else len(pending))
-            done, fail = run_watch_batch(
-                page,
-                session,
-                classroom_id=classroom_id,
-                origin=origin,
-                pending=pending,
-                limit=limit,
-                rate=rate,
-                complete_ratio=complete_ratio,
-                max_watch=max_watch,
-                progress=progress,
-                failed=failed,
-                data_dir=data_dir,
-                shot_on_err=shot_on_err,
-                pause_lo=pause_lo,
-                pause_hi=pause_hi,
-            )
-            print("=" * 56)
-            print(f"[main] 结束: 成功 {done}, 失败 {fail}")
-            print("=" * 56)
-            return 0 if fail == 0 else 3
+        result = run_automation(
+            root=ROOT,
+            cfg=cfg,
+            action=action,
+            attend_filter=normalize_attend_filter(cfg.get("attend_filter", "all")),
+            log=print,
+        )
+        if result.get("error"):
+            print(f"[!] {result['error']}")
+            return 2
+        print("=" * 56)
+        print(f"[main] {result.get('message')}")
+        print("=" * 56)
+        return 0 if result.get("ok") else 3
 
     # 菜单模式：浏览器会话保持，循环操作
     with BrowserSession(headless=headless, storage_state=storage) as session:
@@ -567,7 +534,7 @@ def main() -> int:
                 continue
 
             limit = 1 if action == "once" else len(pending)
-            done, fail = run_watch_batch(
+            done, fail, soft_n = run_watch_batch(
                 page,
                 session,
                 classroom_id=classroom_id,
@@ -579,14 +546,21 @@ def main() -> int:
                 max_watch=max_watch,
                 progress=progress,
                 failed=failed,
+                soft=soft,
                 data_dir=data_dir,
                 shot_on_err=shot_on_err,
                 pause_lo=pause_lo,
                 pause_hi=pause_hi,
+                confirm_grace_sec=confirm_grace_sec,
+                soft_boost=soft_boost,
+                require_platform=require_platform,
             )
             total_done += done
             total_fail += fail
-            print(f"[main] 本轮 成功 {done} / 失败 {fail}（累计 {total_done}/{total_fail}）")
+            print(
+                f"[main] 本轮 确认 {done} / SOFT {soft_n} / 失败 {fail}"
+                f"（累计确认 {total_done}/失败 {total_fail}）"
+            )
 
         session.save_state()
         if auto_save and has_classroom(cfg):

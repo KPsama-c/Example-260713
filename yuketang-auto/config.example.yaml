@@ -19,11 +19,18 @@ headless: false
 complete_ratio: 0.65
 # true=仅平台确认「已观看回放」才写入断点（推荐，避免漏刷）
 require_platform_confirm: true
+# 本地达线后继续真播并轮询确认的秒数
+confirm_grace_sec: 120
+# 仍未确认时再往上播的比例（上限 95%）
+soft_boost: 0.10
+# 单节硬失败额外重试次数
+retry_per_lesson: 1
 max_watch_sec: 7200
 
 storage_state: "data/storage_state.json"
 progress_file: "data/progress.json"
 failed_file: "data/failed.json"
+soft_file: "data/soft.json"
 max_videos: 0
 wait_login_timeout_sec: 180
 screenshot_on_error: true

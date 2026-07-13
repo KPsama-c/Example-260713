@@ -11,49 +11,53 @@ from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlparse
 
 from yuketang.browser import BrowserSession
 from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
-from yuketang.login import ensure_login
+from yuketang.login import ensure_login, is_logged_in
 from yuketang.logs import (
     LogsApiError,
     fetch_all_activities,
     list_pending_replays,
     normalize_attend_filter,
+    replay_segment_count,
 )
-from yuketang.progress import FailedStore, ProgressStore
+from yuketang.progress import FailedStore, ProgressStore, SoftStore
 from yuketang.rate import resolve_playback_rate
 from yuketang.replay import ReplayResult, watch_replay
 from yuketang.settings import has_classroom, resolve_runtime, save_settings
+from yuketang.util import fmt_eta, origin_of, progress_key, resolve_path
 
 LogFn = Callable[[str], None]
 
-
-def _origin_of(url: str) -> str:
-    p = urlparse(url)
-    if p.scheme and p.netloc:
-        return f"{p.scheme}://{p.netloc}"
-    return "https://www.yuketang.cn"
+_DEFAULT_LESSON_SEC = 60 * 60  # 无时长 API 时的默认估算
+_RUN_HISTORY_MAX = 10
 
 
-def _resolve_path(base: Path, p: str | Path) -> Path:
-    path = Path(p)
-    if path.is_absolute():
-        return path
-    return (base / path).resolve()
+def _append_run_history(root: Path, entry: dict[str, Any]) -> None:
+    """写入最近运行摘要（仅计数/时间/动作，无课程标题隐私）。"""
+    import json
+    from datetime import datetime, timezone
 
-
-def _fmt_eta(sec: float) -> str:
-    if sec <= 0 or sec > 48 * 3600:
-        return "-"
-    m, s = divmod(int(sec), 60)
-    h, m = divmod(m, 60)
-    if h:
-        return f"{h}小时{m}分"
-    if m:
-        return f"{m}分{s:02d}秒"
-    return f"{s}秒"
+    path = root / "data" / "run_history.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    items: list[dict[str, Any]] = []
+    if path.exists():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            items = list(raw.get("items") or [])
+        except (json.JSONDecodeError, OSError, TypeError):
+            items = []
+    entry = {
+        **entry,
+        "at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
+    }
+    items.insert(0, entry)
+    items = items[:_RUN_HISTORY_MAX]
+    path.write_text(
+        json.dumps({"items": items, "updated_at": entry["at"]}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 @dataclass
@@ -145,32 +149,67 @@ def reconcile_progress_with_platform(
     *,
     origin: str,
     log: LogFn,
+    soft: SoftStore | None = None,
 ) -> dict[str, int]:
-    """用平台 live_viewed 对账本地断点。"""
+    """用平台 live_viewed 对账本地断点与 SOFT 列表。"""
     added = 0
     removed = 0
+    soft_promoted = 0
     try:
         items = fetch_all_activities(page, classroom_id, origin=origin, log=lambda *_: None)
     except Exception as e:
         log(f"[progress] 对账跳过: {e}")
-        return {"added": 0, "removed": 0}
+        return {"added": 0, "removed": 0, "soft_promoted": 0}
 
+    cid = str(classroom_id)
     by_id = {it.lesson_id: it for it in items}
-    # 平台已看 -> 补写
+
     for lid, it in by_id.items():
-        if it.live_viewed and lid not in progress.completed:
-            progress.mark_done(lid, it.title)
+        if it.live_viewed and not progress.is_lesson_done(cid, lid):
+            progress.mark_done(
+                progress_key(cid, lid),
+                it.title,
+                classroom_id=cid,
+                lesson_id=lid,
+            )
             added += 1
-    # 本地有、平台未看 -> 剔除（修复历史误 mark）
+            if soft:
+                soft.remove(cid, lid)
+
     for key in list(progress.completed):
-        it = by_id.get(key)
+        from yuketang.util import parse_progress_key
+
+        c, lid = parse_progress_key(key)
+        # 仅处理本课 namespaced，或旧裸键
+        if c is not None and c != cid:
+            continue
+        if not lid:
+            continue
+        it = by_id.get(lid)
         if it is not None and not it.live_viewed:
             progress.unmark(key)
             removed += 1
             log(f"[progress] 剔除误断点（平台未看）: {it.title or key}")
-    if added or removed:
-        log(f"[progress] 对账完成: 补写 {added}，剔除 {removed}")
-    return {"added": added, "removed": removed}
+
+    if soft:
+        for s in list(soft.for_classroom(cid)):
+            it = by_id.get(s.lesson_id)
+            if it is not None and it.live_viewed:
+                progress.mark_done(
+                    s.key,
+                    s.title or it.title,
+                    classroom_id=cid,
+                    lesson_id=s.lesson_id,
+                )
+                soft.remove(cid, s.lesson_id)
+                soft_promoted += 1
+                log(f"[progress] SOFT 转正: {s.title or s.lesson_id}")
+
+    if added or removed or soft_promoted:
+        log(
+            f"[progress] 对账完成: 补写 {added}，剔除 {removed}，SOFT转正 {soft_promoted}"
+        )
+    return {"added": added, "removed": removed, "soft_promoted": soft_promoted}
 
 
 def run_automation(
@@ -180,17 +219,26 @@ def run_automation(
     action: str,
     log: LogFn | None = None,
     attend_filter: str | None = None,
+    lesson_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    """同步执行。action: list | once | all。"""
+    """同步执行。action: list | once | all | selected。"""
     log = log or print
     action = (action or "list").strip().lower()
-    if action not in ("list", "once", "all", "all_absent", "list_absent", "once_absent"):
+    if action not in (
+        "list",
+        "once",
+        "all",
+        "selected",
+        "all_absent",
+        "list_absent",
+        "once_absent",
+    ):
         return {"ok": False, "error": f"未知动作: {action}"}
 
     if action.endswith("_absent"):
         attend_filter = "absent"
         action = action.replace("_absent", "") or "list"
-    if action not in ("list", "once", "all"):
+    if action not in ("list", "once", "all", "selected"):
         return {"ok": False, "error": f"未知动作: {action}"}
 
     af = normalize_attend_filter(
@@ -206,14 +254,17 @@ def run_automation(
         return {"ok": False, "error": "无法解析 classroom_id"}
 
     headless = bool(cfg.get("headless", False))
-    storage = _resolve_path(root, cfg.get("storage_state", "data/storage_state.json"))
-    progress_path = _resolve_path(root, cfg.get("progress_file", "data/progress.json"))
-    failed_path = _resolve_path(root, cfg.get("failed_file", "data/failed.json"))
+    storage = resolve_path(root, cfg.get("storage_state", "data/storage_state.json"))
+    progress_path = resolve_path(root, cfg.get("progress_file", "data/progress.json"))
+    failed_path = resolve_path(root, cfg.get("failed_file", "data/failed.json"))
+    soft_path = resolve_path(root, cfg.get("soft_file", "data/soft.json"))
     wait_login = int(cfg.get("wait_login_timeout_sec", 180))
     max_watch = int(cfg.get("max_watch_sec", 7200))
     complete_ratio = float(cfg.get("complete_ratio", 0.65))
-    # 默认仅平台确认才写断点
     require_platform = bool(cfg.get("require_platform_confirm", True))
+    confirm_grace_sec = int(cfg.get("confirm_grace_sec", 120))
+    soft_boost = float(cfg.get("soft_boost", 0.10))
+    retry_per_lesson = max(0, int(cfg.get("retry_per_lesson", 1)))
     shot_on_err = bool(cfg.get("screenshot_on_error", True))
     pause_cfg = cfg.get("pause_between_sec", [2, 6])
     if isinstance(pause_cfg, (list, tuple)) and len(pause_cfg) >= 2:
@@ -221,10 +272,14 @@ def run_automation(
     else:
         pause_lo, pause_hi = 2.0, 6.0
 
-    progress = ProgressStore.load(progress_path)
+    progress = ProgressStore.load(progress_path, classroom_id=str(classroom_id))
     failed = FailedStore(failed_path)
+    soft = SoftStore(soft_path)
     data_dir = root / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
+    migrated = progress.migrate_to_namespaced(str(classroom_id))
+    if migrated:
+        log(f"[progress] 已迁移 {migrated} 条旧断点为课堂隔离键")
 
     done_count = 0
     fail_count = 0
@@ -253,7 +308,7 @@ def run_automation(
             return {"ok": False, "error": "登录超时", "done": 0, "fail": 0}
 
         session.save_state()
-        origin = _origin_of(page.url or course_url)
+        origin = origin_of(page.url or course_url)
 
         resolved, _rooms, resolve_msg = resolve_joined_classroom(
             page, str(classroom_id), log=log
@@ -287,16 +342,16 @@ def run_automation(
         except Exception as e:
             log(f"[job] 打开日志页警告: {e}")
 
-        # 对账断点
+        # 对账断点 + SOFT 转正
         reconcile_progress_with_platform(
-            page, classroom_id, progress, origin=origin, log=log
+            page, classroom_id, progress, origin=origin, log=log, soft=soft
         )
 
         try:
             pending = list_pending_replays(
                 page,
                 classroom_id,
-                progress_keys=set(progress.completed),
+                progress_keys=progress.keys_for_lookup(str(classroom_id)),
                 origin=origin,
                 attend_filter=af,
                 log=log,
@@ -310,20 +365,56 @@ def run_automation(
                 "classroom_id": classroom_id,
             }
 
+        soft_ids = {s.lesson_id for s in soft.for_classroom(str(classroom_id))}
+        # 列表阶段取时长（限流串行，失败用默认）
+        duration_map: dict[str, float] = {}
+        for it in pending:
+            if STATE.is_cancel_requested():
+                break
+            try:
+                _segs, tot = replay_segment_count(page, it.lesson_id, origin=origin)
+                duration_map[it.lesson_id] = tot if tot > 0 else float(_DEFAULT_LESSON_SEC)
+            except Exception:
+                duration_map[it.lesson_id] = float(_DEFAULT_LESSON_SEC)
+            page.wait_for_timeout(80)
+
         pending_preview = [
             {
                 "title": it.title,
                 "lesson_id": it.lesson_id,
                 "attend": bool(it.attend_status),
+                "soft": it.lesson_id in soft_ids,
+                "duration_sec": int(duration_map.get(it.lesson_id, _DEFAULT_LESSON_SEC)),
+                "duration_min": round(
+                    duration_map.get(it.lesson_id, _DEFAULT_LESSON_SEC) / 60, 1
+                ),
             }
             for it in pending
         ]
+        total_content = sum(duration_map.get(it.lesson_id, _DEFAULT_LESSON_SEC) for it in pending)
+        est_wall_all = (total_content * complete_ratio) / max(rate, 0.5)
         log(f"[job] 待观看 {len(pending)} 节（{af_label}）")
+        if pending:
+            log(
+                f"[job] 内容合计约 {total_content/60:.0f} 分钟，"
+                f"按 {complete_ratio*100:.0f}% / {rate}x 墙钟约 {fmt_eta(est_wall_all)}"
+            )
         for i, it in enumerate(pending, 1):
             tag = "缺勤" if not it.attend_status else "已签到"
-            log(f"  {i}. [{tag}] {it.title}")
+            soft_tag = " SOFT" if it.lesson_id in soft_ids else ""
+            dm = duration_map.get(it.lesson_id, _DEFAULT_LESSON_SEC) / 60
+            log(f"  {i}. [{tag}{soft_tag}] {it.title} (~{dm:.0f}分)")
 
         STATE.pending_preview = pending_preview
+        STATE.batch = {
+            "total": len(pending),
+            "remaining": len(pending),
+            "est_wall_sec": int(est_wall_all),
+            "est_wall_text": fmt_eta(est_wall_all),
+            "total_content_sec": int(total_content),
+            "rate": rate,
+            "complete_ratio": complete_ratio,
+        }
 
         if action == "list" or not pending:
             session.save_state()
@@ -335,10 +426,12 @@ def run_automation(
                 "pending": pending_preview,
                 "classroom_id": classroom_id,
                 "attend_filter": af,
+                "est_wall_sec": int(est_wall_all),
+                "est_wall_text": fmt_eta(est_wall_all),
                 "message": (
                     "无待办"
                     if not pending
-                    else f"共 {len(pending)} 节待观看（{af_label}）"
+                    else f"共 {len(pending)} 节待观看（{af_label}），约 {fmt_eta(est_wall_all)}"
                 ),
             }
 
@@ -352,23 +445,46 @@ def run_automation(
                 "cancelled": True,
             }
 
-        limit = 1 if action == "once" else len(pending)
-        targets = pending[:limit]
+        if action == "once":
+            targets = pending[:1]
+        elif action == "selected":
+            want = {str(x) for x in (lesson_ids or [])}
+            if not want:
+                return {
+                    "ok": False,
+                    "error": "selected 需要 lesson_ids",
+                    "pending": pending_preview,
+                }
+            targets = [it for it in pending if it.lesson_id in want]
+            if not targets:
+                return {
+                    "ok": False,
+                    "error": "所选课程均不在待办中",
+                    "pending": pending_preview,
+                }
+        else:
+            targets = list(pending)
 
-        # 粗估总墙钟（无精确时长时按 60 分钟/节）
-        est_wall = 0.0
-        for it in targets:
-            # 无 per-item duration 时用默认
-            est_wall += (60 * 60 * complete_ratio) / max(rate, 0.5)
+        # 目标子集墙钟
+        est_wall = sum(
+            (duration_map.get(it.lesson_id, _DEFAULT_LESSON_SEC) * complete_ratio)
+            / max(rate, 0.5)
+            for it in targets
+        )
+        # 每节剩余内容秒（用于 batch ETA）
+        remain_content = [
+            duration_map.get(it.lesson_id, _DEFAULT_LESSON_SEC) * complete_ratio
+            for it in targets
+        ]
         log(
-            f"[job] 将处理 {len(targets)} 节；粗估总墙钟约 {_fmt_eta(est_wall)} "
-            f"(按约60分钟/节 x {complete_ratio*100:.0f}% / {rate}x，仅参考)"
+            f"[job] 将处理 {len(targets)} 节；估总墙钟约 {fmt_eta(est_wall)} "
+            f"(时长API + {complete_ratio*100:.0f}% / {rate}x)"
         )
         STATE.batch = {
             "total": len(targets),
             "remaining": len(targets),
             "est_wall_sec": int(est_wall),
-            "est_wall_text": _fmt_eta(est_wall),
+            "est_wall_text": fmt_eta(est_wall),
             "rate": rate,
             "complete_ratio": complete_ratio,
         }
@@ -376,6 +492,13 @@ def run_automation(
         for idx, item in enumerate(targets, 1):
             if STATE.is_cancel_requested():
                 log("[job] 用户取消，停止后续课程")
+                break
+
+            if not is_logged_in(page):
+                log("[job] 登录态失效，请使用有界面模式重新登录")
+                if shot_on_err:
+                    session.screenshot(data_dir / "session_expired.png")
+                fail_count += 1
                 break
 
             log("-" * 40)
@@ -397,47 +520,73 @@ def run_automation(
                 "current_title": item.title,
             }
 
-            def _on_prog(info: dict[str, Any], _idx=idx, _n=len(targets)) -> None:
+            def _on_prog(
+                info: dict[str, Any],
+                _idx=idx,
+                _n=len(targets),
+                _remain=remain_content,
+            ) -> None:
                 info = dict(info)
                 info["index"] = _idx
                 info["total"] = _n
                 STATE.set_progress(info)
-                # 更新批量剩余 ETA：本节 eta + 后面节粗估
                 eta_sec = int(info.get("eta_sec") or 0)
-                remain_after = max(0, _n - _idx)
-                rest = remain_after * (60 * 60 * complete_ratio) / max(rate, 0.5)
+                rest_content = sum(_remain[_idx:])  # 后面整节
+                rest_wall = rest_content / max(rate, 0.5)
                 with STATE._lock:
                     STATE.batch = {
                         **STATE.batch,
                         "index": _idx,
                         "total": _n,
-                        "remaining": remain_after + (1 if info.get("phase") == "playing" else 0),
+                        "remaining": max(0, _n - _idx)
+                        + (1 if info.get("phase") in ("playing", "grace") else 0),
                         "section_eta_sec": eta_sec,
-                        "batch_eta_sec": int(eta_sec + rest),
-                        "batch_eta_text": _fmt_eta(eta_sec + rest),
+                        "batch_eta_sec": int(eta_sec + rest_wall),
+                        "batch_eta_text": fmt_eta(eta_sec + rest_wall),
                     }
 
-            result: ReplayResult = watch_replay(
-                page,
-                classroom_id=classroom_id,
-                lesson_id=item.lesson_id,
-                origin=origin,
-                rate=rate,
-                complete_ratio=complete_ratio,
-                max_watch_sec=max_watch,
-                log=log,
-                on_progress=_on_prog,
-                title=item.title,
-                should_cancel=STATE.is_cancel_requested,
-            )
+            result: ReplayResult | None = None
+            attempts = 1 + retry_per_lesson
+            for attempt in range(1, attempts + 1):
+                if STATE.is_cancel_requested():
+                    break
+                if attempt > 1:
+                    log(f"[job] 重试本节 ({attempt}/{attempts})...")
+                    page.wait_for_timeout(1500)
+                result = watch_replay(
+                    page,
+                    classroom_id=classroom_id,
+                    lesson_id=item.lesson_id,
+                    origin=origin,
+                    rate=rate,
+                    complete_ratio=complete_ratio,
+                    max_watch_sec=max_watch,
+                    log=log,
+                    on_progress=_on_prog,
+                    title=item.title,
+                    should_cancel=STATE.is_cancel_requested,
+                    confirm_grace_sec=confirm_grace_sec,
+                    soft_boost=soft_boost,
+                )
+                if result.cancelled or result.platform_confirmed or result.ok:
+                    break
+                # 硬失败才重试
+            assert result is not None
+
+            pkey = progress_key(str(classroom_id), item.lesson_id)
 
             if result.cancelled:
                 log("[job] 本节已取消")
-                fail_count += 1
                 break
 
             if result.platform_confirmed:
-                progress.mark_done(item.key, item.title)
+                progress.mark_done(
+                    pkey,
+                    item.title,
+                    classroom_id=str(classroom_id),
+                    lesson_id=item.lesson_id,
+                )
+                soft.remove(str(classroom_id), item.lesson_id)
                 done_count += 1
                 session.save_state()
                 log("[job] [OK] 平台已确认，已写入断点")
@@ -445,21 +594,36 @@ def run_automation(
                 soft_count += 1
                 session.save_state()
                 if require_platform:
+                    soft.add(
+                        classroom_id=str(classroom_id),
+                        lesson_id=item.lesson_id,
+                        title=item.title,
+                        local_ratio=result.local_ratio,
+                    )
                     log(
-                        f"[job] [SOFT] 本地进度 {result.local_ratio*100:.1f}% "
-                        "但平台未确认 — 未写断点"
+                        f"[job] [SOFT] 本地 {result.local_ratio*100:.1f}% "
+                        "平台未确认 — 未写断点，已记 soft 待对账"
                     )
                 else:
-                    progress.mark_done(item.key, item.title)
+                    progress.mark_done(
+                        pkey,
+                        item.title,
+                        classroom_id=str(classroom_id),
+                        lesson_id=item.lesson_id,
+                    )
                     done_count += 1
                     soft_count -= 1
                     log("[job] [OK] 本地达标已写断点（require_platform_confirm=false）")
             else:
                 fail_count += 1
-                failed.add(item.key, item.title, result.reason or "watch_replay failed")
+                failed.add(pkey, item.title, result.reason or "watch_replay failed")
                 if shot_on_err:
                     session.screenshot(data_dir / f"fail_replay_{item.lesson_id}.png")
                 log(f"[job] [FAIL] 本节失败 ({result.reason})")
+
+            # 本节目内容已处理，batch 剩余去掉
+            if idx - 1 < len(remain_content):
+                remain_content[idx - 1] = 0.0
 
             STATE.done = done_count
             STATE.fail = fail_count
@@ -468,19 +632,52 @@ def run_automation(
             if idx < len(targets) and not STATE.is_cancel_requested():
                 delay = random.uniform(pause_lo, pause_hi)
                 log(f"[job] 休息 {delay:.1f}s")
-                # 可中断休息
                 end_sleep = time.time() + delay
                 while time.time() < end_sleep:
                     if STATE.is_cancel_requested():
                         break
                     time.sleep(0.3)
 
+        # 结束再对账一次（非播放态，可导航）
+        try:
+            page.goto(
+                f"{origin}/v2/web/studentLog/{classroom_id}",
+                wait_until="domcontentloaded",
+            )
+            page.wait_for_timeout(800)
+            reconcile_progress_with_platform(
+                page, classroom_id, progress, origin=origin, log=log, soft=soft
+            )
+        except Exception as e:
+            log(f"[job] 结束对账跳过: {e}")
+
         session.save_state()
 
     cancelled = STATE.is_cancel_requested()
-    msg_parts = [f"成功(平台确认) {done_count}", f"本地未确认 {soft_count}", f"失败 {fail_count}"]
+    msg_parts = [
+        f"成功(平台确认) {done_count}",
+        f"本地未确认 {soft_count}",
+        f"失败 {fail_count}",
+    ]
     if cancelled:
         msg_parts.append("已取消")
+    # list 仅刷新不写历史
+    if action != "list":
+        try:
+            _append_run_history(
+                root,
+                {
+                    "action": action,
+                    "attend_filter": af,
+                    "done": done_count,
+                    "soft": soft_count,
+                    "fail": fail_count,
+                    "cancelled": cancelled,
+                    "classroom_id": str(classroom_id),
+                },
+            )
+        except OSError:
+            pass
     return {
         "ok": fail_count == 0 and not cancelled,
         "done": done_count,
@@ -490,6 +687,7 @@ def run_automation(
         "classroom_id": classroom_id,
         "cancelled": cancelled,
         "message": ", ".join(msg_parts),
+        "finished": action != "list",
     }
 
 
@@ -499,6 +697,7 @@ def start_job_async(
     cfg: dict[str, Any],
     action: str,
     attend_filter: str | None = None,
+    lesson_ids: list[str] | None = None,
 ) -> tuple[bool, str]:
     """在后台线程启动任务。若已有任务在跑则拒绝。"""
     global _worker
@@ -529,6 +728,7 @@ def start_job_async(
                 cfg=cfg,
                 action=action,
                 attend_filter=af,
+                lesson_ids=lesson_ids,
                 log=STATE.log,
             )
             with STATE._lock:
@@ -538,6 +738,14 @@ def start_job_async(
                 STATE.soft_done = int(result.get("soft_done") or 0)
                 STATE.pending_preview = list(result.get("pending") or [])
                 STATE.message = str(result.get("message") or result.get("error") or "完成")
+                if result.get("finished"):
+                    STATE.progress = {
+                        **STATE.progress,
+                        "phase": "batch_done",
+                        "platform_confirmed": STATE.done,
+                        "soft": STATE.soft_done,
+                        "fail": STATE.fail,
+                    }
             if result.get("error"):
                 STATE.log(f"[job] 错误: {result['error']}")
                 with STATE._lock:
@@ -559,13 +767,13 @@ def start_job_async(
 
 def clear_progress_store(root: Path, cfg: dict[str, Any] | None = None) -> int:
     cfg = cfg or {}
-    path = _resolve_path(root, cfg.get("progress_file", "data/progress.json"))
+    path = resolve_path(root, cfg.get("progress_file", "data/progress.json"))
     store = ProgressStore.load(path)
     return store.clear()
 
 
 def clear_failed_store(root: Path, cfg: dict[str, Any] | None = None) -> int:
     cfg = cfg or {}
-    path = _resolve_path(root, cfg.get("failed_file", "data/failed.json"))
+    path = resolve_path(root, cfg.get("failed_file", "data/failed.json"))
     store = FailedStore(path)
     return store.clear()
