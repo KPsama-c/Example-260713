@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.8] - 2026-07-13
+
+### 统一列表路径
+- 抽出 `load_pending_for_classroom`：打开日志 → 平台对账 → 待办列表（菜单 / jobs 共用）
+- 抽出 `enrich_duration_map` 供 jobs ETA 使用
+- 菜单 list 前也会对账；观看结束后再对账（与 jobs 一致）
+- 菜单待办显示 SOFT 标签
+
 ## [0.8.7] - 2026-07-13
 
 ### Web 可见性

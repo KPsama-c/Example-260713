@@ -22,9 +22,15 @@ from yuketang import __version__
 from yuketang.browser import BrowserSession
 from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
 from yuketang.doctor import format_doctor_report, run_doctor
-from yuketang.jobs import run_automation, select_soft_targets, watch_lesson_batch
+from yuketang.jobs import (
+    load_pending_for_classroom,
+    reconcile_progress_with_platform,
+    run_automation,
+    select_soft_targets,
+    watch_lesson_batch,
+)
 from yuketang.login import ensure_login
-from yuketang.logs import LogsApiError, list_pending_replays, normalize_attend_filter
+from yuketang.logs import LogsApiError, normalize_attend_filter
 from yuketang.progress import FailedStore, ProgressStore, SoftStore
 from yuketang.rate import PRESETS, rate_help_text, resolve_playback_rate
 from yuketang.settings import (
@@ -146,15 +152,19 @@ def parse_args() -> argparse.Namespace:
     return ap.parse_args()
 
 
-def print_pending(pending: list) -> None:
+def print_pending(pending: list, *, soft: SoftStore | None = None, classroom_id: str = "") -> None:
     if not pending:
         print("[main] 没有待观看回放")
         return
+    soft_ids: set[str] = set()
+    if soft is not None and classroom_id:
+        soft_ids = {s.lesson_id for s in soft.for_classroom(str(classroom_id))}
     print(f"[main] 待处理 {len(pending)} 节（未观看回放）:")
     for i, item in enumerate(pending, 1):
         attend = "已签到" if item.attend_status else "缺勤"
-        print(f"  {i:3d}. {item.title}")
-        print(f"       lesson={item.lesson_id}  ({attend})")
+        soft_tag = " SOFT" if item.lesson_id in soft_ids else ""
+        print(f"  {i:3d}. [{attend}{soft_tag}] {item.title}")
+        print(f"       lesson={item.lesson_id}")
 
 
 def ensure_resolved_classroom(
@@ -181,32 +191,6 @@ def ensure_resolved_classroom(
     else:
         print(f"[main] {msg}")
     return resolved
-
-
-def fetch_pending(
-    page,
-    classroom_id: str,
-    origin: str,
-    progress: ProgressStore,
-    *,
-    attend_filter: str = "all",
-) -> list:
-    try:
-        page.goto(
-            f"{origin}/v2/web/studentLog/{classroom_id}",
-            wait_until="domcontentloaded",
-        )
-        page.wait_for_timeout(1500)
-    except Exception as e:
-        print(f"[main] 打开日志页警告: {e}")
-    return list_pending_replays(
-        page,
-        classroom_id,
-        progress_keys=progress.keys_for_lookup(str(classroom_id)),
-        origin=origin,
-        attend_filter=attend_filter,
-        log=print,
-    )
 
 
 def main() -> int:
@@ -471,13 +455,20 @@ def main() -> int:
 
             af = force_af or normalize_attend_filter(cfg.get("attend_filter", "all"))
             try:
-                pending = fetch_pending(
-                    page, classroom_id, origin, progress, attend_filter=af
+                pending = load_pending_for_classroom(
+                    page,
+                    str(classroom_id),
+                    origin=origin,
+                    progress=progress,
+                    soft=soft,
+                    attend_filter=af,
+                    log=print,
+                    reconcile=True,
                 )
             except LogsApiError as e:
                 print(f"[!] {e}")
                 continue
-            print_pending(pending)
+            print_pending(pending, soft=soft, classroom_id=str(classroom_id))
 
             if action == "list":
                 continue
@@ -525,6 +516,18 @@ def main() -> int:
                 f"[main] 本轮 确认 {done} / SOFT {soft_n} / 失败 {fail}"
                 f"（累计确认 {total_done}/失败 {total_fail}）"
             )
+            # 与 jobs 一致：观看后再对账一次
+            try:
+                reconcile_progress_with_platform(
+                    page,
+                    str(classroom_id),
+                    progress,
+                    origin=origin,
+                    log=print,
+                    soft=soft,
+                )
+            except Exception as e:
+                print(f"[main] 结束对账跳过: {e}")
 
         session.save_state()
         if auto_save and has_classroom(cfg):

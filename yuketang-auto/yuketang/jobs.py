@@ -197,6 +197,77 @@ def select_soft_targets(pending: list, soft: SoftStore, classroom_id: str) -> li
     return [it for it in pending if it.lesson_id in soft_ids]
 
 
+def load_pending_for_classroom(
+    page,
+    classroom_id: str,
+    *,
+    origin: str,
+    progress: ProgressStore,
+    soft: SoftStore | None = None,
+    attend_filter: str = "all",
+    log: LogFn | None = None,
+    reconcile: bool = True,
+    open_log_page: bool = True,
+    wait_ms: int = 1200,
+) -> list:
+    """打开学习日志 →（可选）平台对账 → 返回待办列表。
+
+    菜单与 run_automation 共用，保证 list 前断点/SOFT 语义一致。
+    """
+    log = log or print
+    cid = str(classroom_id)
+    if open_log_page:
+        try:
+            page.goto(
+                f"{origin}/v2/web/studentLog/{cid}",
+                wait_until="domcontentloaded",
+            )
+            page.wait_for_timeout(int(wait_ms))
+        except Exception as e:
+            log(f"[job] 打开日志页警告: {e}")
+
+    if reconcile:
+        reconcile_progress_with_platform(
+            page, cid, progress, origin=origin, log=log, soft=soft
+        )
+
+    return list_pending_replays(
+        page,
+        cid,
+        progress_keys=progress.keys_for_lookup(cid),
+        origin=origin,
+        attend_filter=normalize_attend_filter(attend_filter),
+        log=log,
+    )
+
+
+def enrich_duration_map(
+    page,
+    pending: list,
+    *,
+    origin: str,
+    should_cancel: Callable[[], bool] | None = None,
+    default_sec: float | None = None,
+) -> dict[str, float]:
+    """为待办串行拉时长；失败用 default。"""
+    cancel_fn = should_cancel or (lambda: False)
+    fallback = float(default_sec if default_sec is not None else _DEFAULT_LESSON_SEC)
+    duration_map: dict[str, float] = {}
+    for it in pending:
+        if cancel_fn():
+            break
+        try:
+            _segs, tot = replay_segment_count(page, it.lesson_id, origin=origin)
+            duration_map[it.lesson_id] = tot if tot > 0 else fallback
+        except Exception:
+            duration_map[it.lesson_id] = fallback
+        try:
+            page.wait_for_timeout(80)
+        except Exception:
+            pass
+    return duration_map
+
+
 def normalize_job_action(action: str) -> tuple[str, str | None]:
     """返回 (归一化动作, 强制 attend_filter 或 None)。
 
@@ -545,27 +616,15 @@ def run_automation(
             log(f"[job] {resolve_msg}")
 
         try:
-            page.goto(
-                f"{origin}/v2/web/studentLog/{classroom_id}",
-                wait_until="domcontentloaded",
-            )
-            page.wait_for_timeout(1200)
-        except Exception as e:
-            log(f"[job] 打开日志页警告: {e}")
-
-        # 对账断点 + SOFT 转正
-        reconcile_progress_with_platform(
-            page, classroom_id, progress, origin=origin, log=log, soft=soft
-        )
-
-        try:
-            pending = list_pending_replays(
+            pending = load_pending_for_classroom(
                 page,
-                classroom_id,
-                progress_keys=progress.keys_for_lookup(str(classroom_id)),
+                str(classroom_id),
                 origin=origin,
+                progress=progress,
+                soft=soft,
                 attend_filter=af,
                 log=log,
+                reconcile=True,
             )
         except LogsApiError as e:
             return {
@@ -577,17 +636,12 @@ def run_automation(
             }
 
         soft_ids = {s.lesson_id for s in soft.for_classroom(str(classroom_id))}
-        # 列表阶段取时长（限流串行，失败用默认）
-        duration_map: dict[str, float] = {}
-        for it in pending:
-            if STATE.is_cancel_requested():
-                break
-            try:
-                _segs, tot = replay_segment_count(page, it.lesson_id, origin=origin)
-                duration_map[it.lesson_id] = tot if tot > 0 else float(_DEFAULT_LESSON_SEC)
-            except Exception:
-                duration_map[it.lesson_id] = float(_DEFAULT_LESSON_SEC)
-            page.wait_for_timeout(80)
+        duration_map = enrich_duration_map(
+            page,
+            pending,
+            origin=origin,
+            should_cancel=STATE.is_cancel_requested,
+        )
 
         pending_preview = [
             {
