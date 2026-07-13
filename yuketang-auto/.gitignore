@@ -3,6 +3,8 @@ config.yaml
 data/*
 !data/.gitkeep
 debug/
+# 运行摘要在 data/ 下已忽略；显式再写一行防误配
+run_history.json
 
 # Python
 __pycache__/

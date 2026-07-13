@@ -1,6 +1,7 @@
 from yuketang.settings import (
     activate_profile,
     apply_classroom_input,
+    delete_profile,
     list_profiles,
     upsert_profile,
 )
@@ -31,3 +32,13 @@ def test_apply_then_upsert_no_dup():
     upsert_profile(cfg, classroom_id="44444", name="Y")
     assert len(list_profiles(cfg)) == 1
     assert list_profiles(cfg)[0]["name"] == "Y"
+
+
+def test_delete_profile_switches_active():
+    cfg: dict = {"profiles": [], "active_profile": ""}
+    upsert_profile(cfg, classroom_id="111", name="A", activate=True)
+    upsert_profile(cfg, classroom_id="222", name="B", activate=False)
+    assert delete_profile(cfg, "111")
+    assert len(list_profiles(cfg)) == 1
+    assert cfg["classroom_id"] == "222"
+    assert not delete_profile(cfg, "nope")

@@ -31,9 +31,11 @@ from yuketang.jobs import (
     start_job_async,
 )
 from yuketang.rate import parse_rate_value
+from yuketang.history import load_run_history
 from yuketang.settings import (
     activate_profile,
     apply_classroom_input,
+    delete_profile,
     has_classroom,
     list_profiles,
     load_settings,
@@ -161,6 +163,33 @@ def api_profile_activate():
         return jsonify({"ok": False, "error": f"未找到配置档: {key}"}), 404
     save_settings(CONFIG_PATH, cfg)
     return jsonify({"ok": True, **_public_cfg(), "message": f"已切换到 {cfg.get('active_profile')}"})
+
+
+@app.post("/api/profile/delete")
+def api_profile_delete():
+    if STATE.running:
+        return jsonify({"ok": False, "error": "任务运行中，请先停止"}), 409
+    data = request.get_json(silent=True) or {}
+    key = str(data.get("key") or data.get("classroom_id") or data.get("name") or "").strip()
+    if not key:
+        return jsonify({"ok": False, "error": "缺少 key（name 或 classroom_id）"}), 400
+    cfg = load_settings(CONFIG_PATH)
+    if not delete_profile(cfg, key):
+        return jsonify({"ok": False, "error": f"未找到配置档: {key}"}), 404
+    save_settings(CONFIG_PATH, cfg)
+    return jsonify({"ok": True, **_public_cfg(), "message": f"已删除配置档 {key}"})
+
+
+@app.get("/api/history")
+def api_history():
+    items = load_run_history(ROOT)
+    return jsonify({"ok": True, "items": items})
+
+
+@app.post("/api/logs/clear")
+def api_logs_clear():
+    STATE.clear_display_logs()
+    return jsonify({"ok": True, "message": "已清空界面日志"})
 
 
 @app.post("/api/profile/upsert")

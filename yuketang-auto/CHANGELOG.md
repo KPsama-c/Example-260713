@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.3] - 2026-07-13
+
+### 体验收尾
+- 运行历史：`data/run_history.json` + `GET /api/history` + Web 列表（无课程标题）
+- 配置档删除：`delete_profile` + `POST /api/profile/delete`
+- 日志「清空显示」：`POST /api/logs/clear`（仅界面缓冲）
+- 任务结束刷新历史；通知权限在结束时按需请求
+
 ## [0.8.2] - 2026-07-13
 
 ### 发布打磨

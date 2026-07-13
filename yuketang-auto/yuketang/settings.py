@@ -122,6 +122,33 @@ def upsert_profile(
     return cfg
 
 
+def delete_profile(cfg: dict[str, Any], key: str) -> bool:
+    """按 name 或 classroom_id 删除配置档；不清除 progress。"""
+    key = str(key or "").strip()
+    if not key:
+        return False
+    profiles = list_profiles(cfg)
+    removed_cid = ""
+    kept: list[dict[str, str]] = []
+    for p in profiles:
+        if p["classroom_id"] == key or p["name"] == key:
+            removed_cid = p["classroom_id"]
+            continue
+        kept.append(p)
+    if not removed_cid:
+        return False
+    cfg["profiles"] = kept
+    cur = str(cfg.get("classroom_id") or "")
+    ap = str(cfg.get("active_profile") or "")
+    was_active = cur == removed_cid or ap == key or ap == removed_cid
+    if was_active:
+        if kept:
+            activate_profile(cfg, kept[0]["classroom_id"])
+        else:
+            cfg["active_profile"] = ""
+    return True
+
+
 def activate_profile(cfg: dict[str, Any], key: str) -> bool:
     """按 name 或 classroom_id 激活配置档，写回顶层 classroom_id/course_url。"""
     key = str(key or "").strip()

@@ -14,6 +14,7 @@ from typing import Any, Callable
 
 from yuketang.browser import BrowserSession
 from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
+from yuketang.history import append_run_history
 from yuketang.login import ensure_login, is_logged_in
 from yuketang.logs import (
     LogsApiError,
@@ -31,33 +32,6 @@ from yuketang.util import fmt_eta, origin_of, progress_key, resolve_path
 LogFn = Callable[[str], None]
 
 _DEFAULT_LESSON_SEC = 60 * 60  # 无时长 API 时的默认估算
-_RUN_HISTORY_MAX = 10
-
-
-def _append_run_history(root: Path, entry: dict[str, Any]) -> None:
-    """写入最近运行摘要（仅计数/时间/动作，无课程标题隐私）。"""
-    import json
-    from datetime import datetime, timezone
-
-    path = root / "data" / "run_history.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    items: list[dict[str, Any]] = []
-    if path.exists():
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-            items = list(raw.get("items") or [])
-        except (json.JSONDecodeError, OSError, TypeError):
-            items = []
-    entry = {
-        **entry,
-        "at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
-    }
-    items.insert(0, entry)
-    items = items[:_RUN_HISTORY_MAX]
-    path.write_text(
-        json.dumps({"items": items, "updated_at": entry["at"]}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
 
 
 @dataclass
@@ -114,6 +88,11 @@ class JobState:
                 self.message = f"本节{tag} {title}".strip()
             elif phase == "cancelled":
                 self.message = "已取消"
+
+    def clear_display_logs(self) -> None:
+        """清空界面用日志缓冲（不删磁盘文件）。"""
+        with self._lock:
+            self.logs.clear()
 
     def snapshot(self, *, since: int = 0) -> dict[str, Any]:
         with self._lock:
@@ -664,7 +643,7 @@ def run_automation(
     # list 仅刷新不写历史
     if action != "list":
         try:
-            _append_run_history(
+            append_run_history(
                 root,
                 {
                     "action": action,
