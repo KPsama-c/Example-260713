@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>雨课堂 · 智汇大讲堂 控制台</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #3b82f6;
+      --accent2: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --input: #0d1219;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1e3a5f 0%, transparent 50%),
+                  radial-gradient(900px 500px at 100% 0%, #1a3d2e 0%, transparent 45%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 28px 18px 48px; }
+    header h1 { margin: 0 0 6px; font-size: 1.45rem; font-weight: 650; }
+    header p { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+    .badge {
+      display: inline-block; margin-top: 10px; padding: 3px 10px; border-radius: 999px;
+      background: #243044; color: var(--muted); font-size: 0.78rem;
+    }
+    .grid { display: grid; gap: 16px; margin-top: 22px; }
+    @media (min-width: 800px) {
+      .grid { grid-template-columns: 1.1fr 0.9fr; }
+    }
+    .card {
+      background: color-mix(in srgb, var(--panel) 92%, black);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 18px 16px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.25);
+    }
+    .card h2 {
+      margin: 0 0 14px; font-size: 1rem; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card h2 span.dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+    }
+    label { display: block; font-size: 0.82rem; color: var(--muted); margin: 10px 0 5px; }
+    input[type="text"], input[type="number"], select {
+      width: 100%; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--input); color: var(--text);
+      font-size: 0.95rem; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.2); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .checks { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; color: var(--muted); font-size: 0.9rem; }
+    .checks label { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text); cursor: pointer; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    button {
+      border: 0; border-radius: 10px; padding: 10px 14px; font-size: 0.92rem;
+      cursor: pointer; font-weight: 600; color: white;
+      transition: transform .08s ease, opacity .15s;
+    }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .btn-green { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .btn-amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .btn-ghost { background: #2a364a; color: var(--text); }
+    .status {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+      padding: 10px 12px; border-radius: 10px; background: #121a26; border: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .pill {
+      width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex-shrink: 0;
+    }
+    .pill.run { background: var(--warn); box-shadow: 0 0 10px var(--warn); }
+    .pill.ok { background: var(--accent2); }
+    .pill.err { background: var(--danger); }
+    #pending {
+      max-height: 180px; overflow: auto; font-size: 0.85rem; color: var(--muted);
+      margin: 0 0 10px; padding: 0; list-style: none;
+    }
+    #pending li {
+      padding: 6px 0; border-bottom: 1px dashed #243044;
+    }
+    #pending li strong { color: var(--text); font-weight: 500; }
+    #log {
+      height: 280px; overflow: auto; background: #0a0e14; border-radius: 10px;
+      border: 1px solid var(--border); padding: 12px; font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.78rem; line-height: 1.45; white-space: pre-wrap; word-break: break-all;
+      color: #b7c5d9;
+    }
+    footer {
+      margin-top: 20px; color: var(--muted); font-size: 0.8rem; line-height: 1.55;
+    }
+    footer a { color: #93c5fd; }
+    .toast {
+      position: fixed; right: 16px; bottom: 16px; background: #1f2937; border: 1px solid var(--border);
+      color: var(--text); padding: 12px 16px; border-radius: 10px; display: none; z-index: 9;
+      max-width: 320px; box-shadow: 0 10px 40px rgba(0,0,0,.4);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>雨课堂 · 智·汇大讲堂 控制台</h1>
+      <p>在网页里填写课堂信息并提交任务。仅监听本机，请勿暴露到公网。运行即视为同意免责声明。</p>
+      <span class="badge">v{{ version }} · 非官方 · 仅观看回放</span>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <h2><span class="dot"></span> 提交配置</h2>
+        <form id="cfgForm" onsubmit="return false;">
+          <label for="classroom_id">classroom_id（数字）</label>
+          <input id="classroom_id" name="classroom_id" type="text" placeholder="例如 1234567890" value="{{ classroom_id }}" />
+
+          <label for="course_url">或粘贴学习日志 URL</label>
+          <input id="course_url" name="course_url" type="text" placeholder="https://www.yuketang.cn/v2/web/studentLog/..." value="{{ course_url }}" />
+
+          <div class="row">
+            <div>
+              <label for="playback_rate">播放倍速</label>
+              <input id="playback_rate" name="playback_rate" type="text" value="{{ playback_rate }}" />
+            </div>
+            <div>
+              <label for="complete_ratio">有效进度比例 (0.5~1)</label>
+              <input id="complete_ratio" name="complete_ratio" type="number" min="0.5" max="1" step="0.01" value="{{ complete_ratio }}" />
+            </div>
+          </div>
+
+          <div class="checks">
+            <label><input type="checkbox" id="headless" {% if headless %}checked{% endif %} /> 无头模式（首次登录请勿勾选）</label>
+          </div>
+
+          <div class="actions">
+            <button type="button" class="btn-ghost" id="btnSave">保存配置</button>
+            <button type="button" class="btn-primary" id="btnList">刷新待办列表</button>
+            <button type="button" class="btn-amber" id="btnOnce">观看下一节</button>
+            <button type="button" class="btn-green" id="btnAll">全部观看</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2><span class="dot" style="background:#22c55e"></span> 运行状态</h2>
+        <div class="status">
+          <span class="pill" id="pill"></span>
+          <div>
+            <div id="statusMsg">空闲</div>
+            <div style="color:var(--muted);font-size:0.8rem;margin-top:2px" id="statusMeta">—</div>
+          </div>
+        </div>
+        <div style="font-size:0.85rem;color:var(--muted);margin-bottom:6px">待办预览</div>
+        <ul id="pending"></ul>
+        <div style="font-size:0.85rem;color:var(--muted);margin-bottom:6px">日志</div>
+        <div id="log"></div>
+      </section>
+    </div>
+
+    <footer>
+      默认地址 <code>http://127.0.0.1:8765</code>。配置写入本机 <code>config.yaml</code>，登录态在 <code>data/</code>。
+      详见项目 <a href="/disclaimer" target="_blank">免责声明</a>。不伪造签到、不答题。
+    </footer>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const logEl = $("log");
+    const pendingEl = $("pending");
+    let lastLogLen = 0;
+
+    function toast(msg) {
+      const t = $("toast");
+      t.textContent = msg;
+      t.style.display = "block";
+      setTimeout(() => { t.style.display = "none"; }, 2600);
+    }
+
+    function formPayload() {
+      return {
+        classroom_id: $("classroom_id").value.trim(),
+        course_url: $("course_url").value.trim(),
+        playback_rate: $("playback_rate").value.trim(),
+        complete_ratio: parseFloat($("complete_ratio").value || "0.65"),
+        headless: $("headless").checked,
+      };
+    }
+
+    async function saveConfig() {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formPayload()),
+      });
+      const data = await res.json();
+      if (!data.ok) { toast(data.error || "保存失败"); return false; }
+      toast("配置已保存");
+      if (data.classroom_id) $("classroom_id").value = data.classroom_id;
+      if (data.course_url) $("course_url").value = data.course_url;
+      return true;
+    }
+
+    async function runAction(action) {
+      const ok = await saveConfig();
+      if (!ok) return;
+      const res = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      toast(data.message || (data.ok ? "已启动" : "失败"));
+      pollStatus();
+    }
+
+    function renderStatus(s) {
+      $("statusMsg").textContent = s.message || "—";
+      $("statusMeta").textContent = s.running
+        ? `运行中 · ${s.action || ""}`
+        : `空闲 · 成功 ${s.done || 0} / 失败 ${s.fail || 0}`;
+      const pill = $("pill");
+      pill.className = "pill";
+      if (s.running) pill.classList.add("run");
+      else if (s.ok === true) pill.classList.add("ok");
+      else if (s.ok === false) pill.classList.add("err");
+
+      pendingEl.innerHTML = "";
+      (s.pending_preview || []).forEach((it, i) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<strong>${i + 1}. ${escapeHtml(it.title || "")}</strong>`
+          + ` <span style="opacity:.7">(${it.attend ? "已签到" : "缺勤"})</span>`;
+        pendingEl.appendChild(li);
+      });
+
+      const logs = s.logs || [];
+      if (logs.length !== lastLogLen) {
+        logEl.textContent = logs.join("\n");
+        logEl.scrollTop = logEl.scrollHeight;
+        lastLogLen = logs.length;
+      }
+
+      const busy = !!s.running;
+      ["btnSave","btnList","btnOnce","btnAll"].forEach((id) => {
+        if (id === "btnSave") return;
+        $(id).disabled = busy;
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      })[c]);
+    }
+
+    async function pollStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+        renderStatus(data);
+      } catch (e) { /* ignore */ }
+    }
+
+    $("btnSave").onclick = () => saveConfig();
+    $("btnList").onclick = () => runAction("list");
+    $("btnOnce").onclick = () => runAction("once");
+    $("btnAll").onclick = () => {
+      if (!confirm("将连续观看全部待办回放，可能耗时很长。确定？")) return;
+      runAction("all");
+    };
+
+    pollStatus();
+    setInterval(pollStatus, 1500);
+  </script>
+</body>
+</html>

@@ -7,18 +7,32 @@
 
 ---
 
-## 最快上手（无需手写配置）
+## 最快上手
 
 ```bash
 pip install -r requirements.txt
 python -m playwright install chromium
+```
 
+### 方式 A：网页控制台（推荐）
+
+```bash
+python webapp.py
+# 浏览器打开 http://127.0.0.1:8765
+```
+
+在页面填写 `classroom_id` 或学习日志 URL、倍速等 → **保存配置** → **刷新待办 / 观看下一节 / 全部观看**。  
+日志与状态会实时刷新。默认只监听本机，请勿暴露公网。
+
+### 方式 B：终端菜单
+
+```bash
 python main.py
 ```
 
-1. 终端向导：粘贴学习日志 URL，或输入 `classroom_id`  
-2. 设倍速（默认 1.25）→ 自动生成 `config.yaml`  
-3. 进入菜单：列表 / 下一节 / 全部 / 设置  
+1. 向导：粘贴 URL 或输入 `classroom_id`  
+2. 自动生成 `config.yaml`  
+3. 菜单：列表 / 下一节 / 全部 / 设置  
 
 ### 主菜单
 
@@ -92,12 +106,13 @@ python main.py --list-rates
 ## 目录
 
 ```
-main.py                 # 入口（向导 + 菜单 + CLI）
+webapp.py               # 网页控制台入口（推荐）
+main.py                 # 终端向导 + 菜单 + CLI
+webui/templates/        # 网页模板
 yuketang/
-  settings.py           # 配置加载/保存
-  ui.py                 # 终端交互
-  logs.py / replay.py   # 日志 API / 播放
-  rate.py               # 倍速
+  jobs.py               # 后台任务（Web/CLI 共用）
+  settings.py / ui.py
+  logs.py / replay.py / rate.py
 data/                   # 本地隐私数据（勿提交）
 DISCLAIMER.md
 ```
