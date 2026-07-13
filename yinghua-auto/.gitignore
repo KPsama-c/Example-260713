@@ -1,0 +1,30 @@
+# 本地配置与隐私数据（Cookie / 进度 / 密钥）
+config.yaml
+config.local.yaml
+.env
+.env.*
+data/*
+!data/.gitkeep
+vendor/*
+!vendor/.gitkeep
+!vendor/README.md
+debug/
+*.html.bak
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.ruff_cache/
+
+# 运行产物
+storage_state.json
+*.png
+*.log
+.DS_Store
+Thumbs.db

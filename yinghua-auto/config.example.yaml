@@ -1,0 +1,46 @@
+# =============================================================================
+# 英华学堂本地助手 · 示例配置
+# 复制为 config.yaml 后按需修改（config.yaml 已 gitignore）
+# 推荐：python main.py --setup  或  python main.py --login
+# =============================================================================
+
+# 站点根地址（各校域名不同）
+base_url: "https://cdcas.yuruixxkj.com"
+
+# 可选：课程首页 / 学习记录 URL（推荐视频记录页）
+# 例: https://学校域名/user/study_record/video?courseId=1021755
+# 或兴趣学习列表: https://学校域名/user/index/open?kind=run
+course_url: ""
+# 可选：课程 ID（有则优先拼 study_record/video）
+course_id: ""
+
+headless: false
+# 倍速过高可能不计学时；原脚本默认 1.0，建议 1.0–1.5
+playback_rate: 1.0
+complete_ratio: 0.95
+max_watch_sec: 7200
+max_videos: 0
+wait_login_timeout_sec: 300
+screenshot_on_error: true
+pause_between_sec: [2, 6]
+
+storage_state: "data/storage_state.json"
+progress_file: "data/progress.json"
+failed_file: "data/failed.json"
+
+# 验证码：M1 以关闭弹窗/人工为主；ONNX 留 M3
+captcha:
+  enabled: true
+  auto_solve: false   # true 需本地 OCR 模型
+
+# 考试：M2，默认关闭，绝不自动交卷
+exam:
+  enabled: false
+  auto_submit: false
+
+# LLM（仅 M2 考试建议答案，密钥勿提交仓库）
+llm:
+  enabled: false
+  base_url: "https://ark.cn-beijing.volces.com/api/v3"
+  endpoint_id: ""
+  api_key: ""

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>英华学堂 · 本地控制台</title>
+  <style>
+    :root {
+      --bg: #0b1017; --panel: #141c28; --border: #2a374c;
+      --text: #e8eef7; --muted: #8b9bb4; --accent: #14b8a6;
+      --danger: #ef4444; --input: #0a0f16;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        radial-gradient(900px 480px at 10% -10%, #134e4a 0%, transparent 55%),
+        radial-gradient(700px 400px at 100% 0%, #1e3a5f 0%, transparent 48%),
+        var(--bg);
+      color: var(--text); min-height: 100vh;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { margin: 0 0 6px; font-size: 1.35rem; }
+    p.sub { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
+    .badge {
+      display: inline-block; margin-top: 10px; padding: 4px 11px;
+      border-radius: 999px; background: #1c2738; color: var(--muted);
+      font-size: .76rem; border: 1px solid var(--border);
+    }
+    .card {
+      margin-top: 16px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px; box-shadow: 0 10px 28px rgba(0,0,0,.28);
+    }
+    .card h2 { margin: 0 0 12px; font-size: .98rem; }
+    label { display: block; font-size: .8rem; color: var(--muted); margin: 10px 0 5px; }
+    input[type=text], input[type=number] {
+      width: 100%; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--input); color: var(--text);
+    }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    button {
+      border: 0; border-radius: 10px; padding: 9px 13px; font-size: .88rem;
+      cursor: pointer; font-weight: 600; color: #fff; background: #0d9488;
+    }
+    button.secondary { background: #334155; }
+    button.danger { background: var(--danger); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .log {
+      margin-top: 10px; height: 280px; overflow: auto; font-family: ui-monospace, Consolas, monospace;
+      font-size: .78rem; background: #0a0f16; border-radius: 10px; padding: 10px;
+      border: 1px solid var(--border); white-space: pre-wrap;
+    }
+    .status { color: var(--muted); font-size: .85rem; margin-top: 8px; }
+    .check { margin-top: 12px; font-size: .88rem; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>英华学堂 · 本地控制台</h1>
+      <p class="sub">非官方 · <strong>仅本人账号</strong> · 仅本机 127.0.0.1 · 考试默认关闭 · 见 <a href="/disclaimer" target="_blank">免责声明</a></p>
+      <span class="badge">v{{ version }} · {{ base_url }}</span>
+    </header>
+
+    <div class="card">
+      <h2>配置</h2>
+      <label>base_url</label>
+      <input id="base_url" type="text" value="{{ base_url }}" />
+      <div class="row">
+        <div>
+          <label>course_url（可选）</label>
+          <input id="course_url" type="text" value="{{ course_url }}" />
+        </div>
+        <div>
+          <label>倍速</label>
+          <input id="playback_rate" type="number" step="0.25" min="0.5" max="3" value="{{ playback_rate }}" />
+        </div>
+      </div>
+      <label class="check"><input id="headless" type="checkbox" {% if headless %}checked{% endif %}/> 无头模式 headless</label>
+      <label class="check"><input id="accept" type="checkbox" /> 我已阅读并同意 <a href="/disclaimer" target="_blank">免责声明</a></label>
+      <div class="actions">
+        <button type="button" class="secondary" onclick="saveSettings()">保存配置</button>
+        <button type="button" onclick="run('list')">刷新待办 list</button>
+        <button type="button" onclick="run('next')">下一节 next</button>
+        <button type="button" onclick="run('all')">连续 all</button>
+        <button type="button" class="danger" onclick="run('stop')">停止</button>
+      </div>
+      <div class="status" id="status">空闲</div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+  <script>
+    let logSince = 0;
+    async function saveSettings() {
+      const body = {
+        base_url: document.getElementById('base_url').value.trim(),
+        course_url: document.getElementById('course_url').value.trim(),
+        playback_rate: parseFloat(document.getElementById('playback_rate').value),
+        headless: document.getElementById('headless').checked,
+      };
+      const r = await fetch('/api/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const j = await r.json();
+      alert(j.ok ? '已保存' : (j.error || '失败'));
+    }
+    async function run(action) {
+      if (action !== 'stop' && !document.getElementById('accept').checked) {
+        alert('请先勾选同意免责声明'); return;
+      }
+      const r = await fetch('/api/jobs', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ action, accept_risk: true })
+      });
+      const j = await r.json();
+      document.getElementById('status').textContent = j.message || JSON.stringify(j);
+    }
+    async function poll() {
+      try {
+        const r = await fetch('/api/status?since=' + logSince);
+        const j = await r.json();
+        document.getElementById('status').textContent =
+          (j.running ? '运行中' : '空闲') + ' · ' + (j.message || '') +
+          ' · done=' + j.done + ' fail=' + j.fail;
+        if (j.logs && j.logs.length) {
+          const el = document.getElementById('log');
+          el.textContent += (el.textContent ? '\n' : '') + j.logs.join('\n');
+          el.scrollTop = el.scrollHeight;
+          logSince = j.log_len || logSince;
+        }
+      } catch (e) {}
+      setTimeout(poll, 1500);
+    }
+    poll();
+  </script>
+</body>
+</html>
