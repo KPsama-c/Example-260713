@@ -100,17 +100,24 @@ def select_soft_targets(pending: list, soft: SoftStore, classroom_id: str) -> li
     return [it for it in pending if it.lesson_id in soft_ids]
 
 
+def soft_local_ratio_map(soft: SoftStore | None, classroom_id: str) -> dict[str, float]:
+    """仅 SOFT 记录：lesson_id -> local_ratio（本地已完整跑到停线的证据）。"""
+    out: dict[str, float] = {}
+    if soft is None:
+        return out
+    for s in soft.for_classroom(str(classroom_id)):
+        out[s.lesson_id] = max(out.get(s.lesson_id, 0.0), float(s.local_ratio or 0))
+    return out
+
+
 def local_complete_ratio_map(
     soft: SoftStore | None,
     classroom_id: str,
     *,
     partial_ratios: dict[str, float] | None = None,
 ) -> dict[str, float]:
-    """lesson_id -> 本地已知最高比例（soft ∪ partial）。"""
-    out: dict[str, float] = {}
-    if soft is not None:
-        for s in soft.for_classroom(str(classroom_id)):
-            out[s.lesson_id] = max(out.get(s.lesson_id, 0.0), float(s.local_ratio or 0))
+    """lesson_id -> 本地已知最高比例（soft ∪ partial，仅展示/ETA 用）。"""
+    out = soft_local_ratio_map(soft, classroom_id)
     for lid, r in (partial_ratios or {}).items():
         out[str(lid)] = max(out.get(str(lid), 0.0), float(r or 0))
     return out
@@ -125,21 +132,30 @@ def filter_skip_local_complete(
     partial_ratios: dict[str, float] | None = None,
     enabled: bool = True,
 ) -> tuple[list, list[tuple[Any, float]]]:
-    """「全部」用：跳过本地已 ≥ complete_ratio 的节（SOFT/partial）。
+    """「全部」用：仅跳过「本地已明确达线」的节。
 
-    返回 (保留列表, [(item, ratio), ...跳过])。
+    判定标准（确定才跳过）：
+    - soft.json 中该节 local_ratio ≥ complete_ratio
+      （表示本机已真实播完 0→阈值，只是平台未确认）
+
+    不因 partial 跳过：中断进度再高也只用于续播；无 SOFT 则视为不确定 → 重看/续看。
+    partial_ratios 参数保留兼容，不参与跳过判定。
+
+    返回 (保留列表, [(item, soft_ratio), ...跳过])。
     soft 动作 / 勾选观看 不要走此过滤。
     """
+    del partial_ratios  # 兼容旧调用；跳过判定不用 partial
     if not enabled or not pending:
         return list(pending), []
     thr = max(0.0, min(float(complete_ratio), 1.0))
-    ratios = local_complete_ratio_map(soft, classroom_id, partial_ratios=partial_ratios)
+    soft_ratios = soft_local_ratio_map(soft, classroom_id)
     kept: list = []
     skipped: list[tuple[Any, float]] = []
     for it in pending:
         lid = str(getattr(it, "lesson_id", "") or "")
-        r = float(ratios.get(lid, 0.0))
-        if r + 1e-9 >= thr:
+        r = float(soft_ratios.get(lid, 0.0))
+        # 仅 SOFT 且明确 ≥ 阈值才跳过；无记录或不足 → 保留（续看/重看）
+        if lid in soft_ratios and r + 1e-9 >= thr:
             skipped.append((it, r))
         else:
             kept.append(it)

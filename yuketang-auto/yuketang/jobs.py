@@ -308,7 +308,7 @@ def run_automation(
                     "pending": pending_preview,
                 }
         else:
-            # all：默认跳过本地已达 complete_ratio（SOFT / partial）
+            # all：仅跳过 SOFT 中已明确达 complete_ratio 的节；partial 只续播不跳过
             targets, skipped_local = filter_skip_local_complete(
                 pending,
                 classroom_id=str(classroom_id),
@@ -319,8 +319,8 @@ def run_automation(
             )
             if skipped_local:
                 log(
-                    f"[job] 全部：跳过本地已达 ≥{complete_ratio*100:.0f}% 的 "
-                    f"{len(skipped_local)} 节（可用「仅 SOFT 再跑」补刷平台）"
+                    f"[job] 全部：跳过 SOFT 已达 ≥{complete_ratio*100:.0f}% 的 "
+                    f"{len(skipped_local)} 节（确定本地 0→阈值；可用「仅 SOFT」补平台）"
                 )
                 for it, r in skipped_local[:8]:
                     log(f"  - skip {getattr(it, 'title', it.lesson_id)} ({r*100:.0f}%)")
@@ -335,8 +335,8 @@ def run_automation(
                     "pending": pending_preview,
                     "classroom_id": classroom_id,
                     "message": (
-                        f"待办均已本地达 ≥{complete_ratio*100:.0f}%，已跳过 "
-                        f"{len(skipped_local)} 节；可用「仅 SOFT 再跑」"
+                        f"待办均已 SOFT 达 ≥{complete_ratio*100:.0f}%，已跳过 "
+                        f"{len(skipped_local)} 节；可用「仅 SOFT 再跑」补平台"
                     ),
                     "finished": True,
                     "skipped_local": len(skipped_local),

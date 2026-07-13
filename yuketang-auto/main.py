@@ -502,12 +502,12 @@ def main() -> int:
                 )
                 if skipped_local:
                     print(
-                        f"[main] 全部：跳过本地已达 ≥{complete_ratio*100:.0f}% 的 "
-                        f"{len(skipped_local)} 节（[9] 仅 SOFT 可补刷）"
+                        f"[main] 全部：跳过 SOFT 已达 ≥{complete_ratio*100:.0f}% 的 "
+                        f"{len(skipped_local)} 节（确定本地 0→阈值；[9] 补平台）"
                     )
                 if not targets:
                     if skipped_local:
-                        print("[main] 待办均已本地达线，已跳过；用 [9] 补刷平台确认")
+                        print("[main] 待办均已 SOFT 达线，已跳过；用 [9] 补刷平台确认")
                     continue
             batch = watch_lesson_batch(
                 page,

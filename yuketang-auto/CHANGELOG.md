@@ -1,9 +1,15 @@
 # Changelog
 
+## [0.9.1] - 2026-07-13
+
+### 跳过语义收紧
+- **全部**仅跳过 `soft.json` 中 local_ratio ≥ `complete_ratio` 的节（本地已明确 0→阈值）
+- `partial.json` 只用于续播，**不**作为跳过依据；无 SOFT = 不确定 → 重看/续看
+
 ## [0.9.0] - 2026-07-13
 
 ### 全部跳过 + 续播
-- **全部观看**：默认跳过本地已达 `complete_ratio`（SOFT / partial）的节；「仅 SOFT 再跑」/勾选仍会重试
+- **全部观看**：跳过本地已达线的节；「仅 SOFT 再跑」/勾选仍会重试
 - **中断续播**：`data/partial.json` 记录真实播放观测进度；取消/失败后再次打开会 seek 到上次位置（非伪造心跳）
 - 配置：`skip_local_complete_on_all`、`resume_partial`、`partial_file`
 

@@ -37,7 +37,8 @@ def test_partial_upsert_get_remove(tmp_path: Path):
     assert store2.get("c1", "L1") is None
 
 
-def test_filter_skip_soft_and_partial(tmp_path: Path):
+def test_filter_skip_only_soft_at_threshold(tmp_path: Path):
+    """仅 SOFT≥阈值才跳过；partial 再高也不跳过（不确定则重看/续看）。"""
     soft = SoftStore(tmp_path / "soft.json")
     soft.items = [
         SoftItem(
@@ -52,9 +53,10 @@ def test_filter_skip_soft_and_partial(tmp_path: Path):
             classroom_id="c1",
             lesson_id="b",
             title="B",
-            local_ratio=0.50,
+            local_ratio=0.50,  # 未达 65%，不跳过
         ),
     ]
+    # partial 0.80 无 SOFT → 不跳过，应续看/重看
     partial_ratios = {"c": 0.80, "d": 0.30}
     pending = [_Item("a"), _Item("b"), _Item("c"), _Item("d"), _Item("e")]
     kept, skipped = filter_skip_local_complete(
@@ -65,9 +67,9 @@ def test_filter_skip_soft_and_partial(tmp_path: Path):
         partial_ratios=partial_ratios,
         enabled=True,
     )
-    assert [x.lesson_id for x in kept] == ["b", "d", "e"]
+    assert [x.lesson_id for x in kept] == ["b", "c", "d", "e"]
     skipped_ids = {x.lesson_id for x, _ in skipped}
-    assert skipped_ids == {"a", "c"}
+    assert skipped_ids == {"a"}
 
 
 def test_filter_disabled_keeps_all(tmp_path: Path):

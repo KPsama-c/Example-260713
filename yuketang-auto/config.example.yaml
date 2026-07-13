@@ -41,7 +41,9 @@ failed_file: "data/failed.json"
 soft_file: "data/soft.json"
 # 中断进度（未达 complete_ratio 的续播点）
 partial_file: "data/partial.json"
-# 点「全部」时跳过本地已达 complete_ratio 的节（SOFT/partial）；「仅 SOFT」仍会重试
+# 点「全部」时：仅跳过 soft.json 里已明确达 complete_ratio 的节（本地 0→阈值已跑完）
+# partial 中断进度不跳过，只用于续播；无 SOFT 记录 = 不确定 → 重看/续看
+# 「仅 SOFT」仍会重试这些节以补平台确认
 skip_local_complete_on_all: true
 # 打开回放时从 partial 续播（seek 到本机曾观测位置，非伪造心跳）
 resume_partial: true
