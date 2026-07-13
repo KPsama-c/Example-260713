@@ -9,9 +9,11 @@ base_url: "https://cdcas.yuruixxkj.com"
 
 # 可选：课程首页 / 学习记录 URL（推荐视频记录页）
 # 例: https://学校域名/user/study_record/video?courseId=1021755
-# 或兴趣学习列表: https://学校域名/user/index/open?kind=run
+# 进行中课: .../user/index/open?kind=run
+# 已结束课: .../user/index/open?kind=finish  （once 可能被平台拦截）
 course_url: ""
 # 可选：课程 ID（有则优先拼 study_record/video）
+# 示例 ID（请换成自己的课，勿把真实 Cookie 提交 git）: "1021755"
 course_id: ""
 
 headless: false

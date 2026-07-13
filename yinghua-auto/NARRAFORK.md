@@ -1,6 +1,7 @@
 # NarraFork AI 管理说明
 
 本机项目：`E:\ai\20-项目代码\yinghua-auto`  
+版本：**v0.1.0 · M1**  
 仅限本机操作；**禁止**将 Cookie / API Key 写入知识库或公开仓库。
 
 ## 安装（一次）
@@ -13,7 +14,7 @@ cp config.example.yaml config.yaml   # Windows 可用 copy
 ```
 
 编辑 `config.yaml` 中的 `base_url`、可选 `course_id` / `course_url`  
-（推荐 `.../user/study_record/video?courseId=`）。
+（推荐 `.../user/study_record/video?courseId=`；进行中课用 `kind=run`）。
 
 **禁止提交**：`config.yaml`、`data/storage_state.json`、`debug/`、密钥。
 
@@ -23,9 +24,9 @@ cp config.example.yaml config.yaml   # Windows 可用 copy
 |------|------|
 | 首次登录（有界面） | `python main.py --login` |
 | 终端菜单 | `python main.py` |
-| 列待办/目录 | `python nfctl.py list` |
-| 刷下一节 | `python nfctl.py next` |
-| 连续刷 | `python nfctl.py all` |
+| 列待办/目录 | `python main.py --list-only` 或 `python nfctl.py list` |
+| 刷下一节 | `python main.py --once` 或 `python nfctl.py next` |
+| 连续刷 | `python main.py --all` 或 `python nfctl.py all` |
 | 状态 | `python nfctl.py status` |
 | 停止 | `python nfctl.py stop` |
 | Web 控制台 | `python webapp.py` → http://127.0.0.1:8766 |
@@ -41,16 +42,30 @@ cp config.example.yaml config.yaml   # Windows 可用 copy
 | POST | `/api/clear-progress` | 清空断点 |
 | POST | `/api/clear-failed` | 清空失败列表 |
 
-同步 CLI 也可用：`python nfctl.py list`（默认同步跑完）；后台：`python nfctl.py next --async`。
+同步 CLI：`python nfctl.py list`（默认同步）；后台：`python nfctl.py next --async`。
 
 ## 协作约定
 
-- **@ai_2**：规划、验收、风险边界  
-- **@ai_3**：实现与调试  
-- 用户：本人账号、真实 `base_url`、可选 LLM Key  
+| 成员 | 职责 |
+|------|------|
+| **@ai_1** | 文档、验收清单（ACCEPTANCE）、发布说明 |
+| **@ai_2** | 规划统筹、风险门禁 |
+| **@ai_3** | 实现与真机调试 |
+| 用户 | 本人账号、真实 `base_url`、可选 LLM Key、remote URL |
+
+验收标准：见 [ACCEPTANCE.md](ACCEPTANCE.md)。
+
+## M1 验证状态（写实）
+
+| 能力 | 状态 |
+|------|------|
+| 登录 + list（含已学过滤 / 分页） | 真机已验证（账号相关数字会变） |
+| once 播放 | 依赖**进行中**课程；已结束课平台拦截属预期 |
+| Web / nfctl | 脚手架就绪；以本机联调为准 |
 
 ## 功能边界（提醒 AI）
 
 - 默认不做考试自动交卷  
 - 不代刷多账号  
 - 不暴露服务到 `0.0.0.0`  
+- 不硬播已结束课程、不伪造学习记录  
