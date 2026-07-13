@@ -6,162 +6,244 @@
   <title>雨课堂 · 智汇大讲堂 控制台</title>
   <style>
     :root {
-      --bg: #0f1419;
-      --panel: #1a2332;
-      --border: #2d3a4f;
-      --text: #e7ecf3;
+      --bg: #0b1017;
+      --panel: #141c28;
+      --border: #2a374c;
+      --text: #e8eef7;
       --muted: #8b9bb4;
       --accent: #3b82f6;
       --accent2: #22c55e;
       --warn: #f59e0b;
       --danger: #ef4444;
-      --input: #0d1219;
+      --purple: #a855f7;
+      --input: #0a0f16;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      background: radial-gradient(1200px 600px at 10% -10%, #1e3a5f 0%, transparent 50%),
-                  radial-gradient(900px 500px at 100% 0%, #1a3d2e 0%, transparent 45%),
-                  var(--bg);
+      background:
+        radial-gradient(1000px 500px at 8% -8%, #1a3358 0%, transparent 55%),
+        radial-gradient(800px 420px at 100% 0%, #163528 0%, transparent 48%),
+        var(--bg);
       color: var(--text);
       min-height: 100vh;
     }
-    .wrap { max-width: 960px; margin: 0 auto; padding: 28px 18px 48px; }
-    header h1 { margin: 0 0 6px; font-size: 1.45rem; font-weight: 650; }
-    header p { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+    header h1 { margin: 0 0 6px; font-size: 1.4rem; font-weight: 650; letter-spacing: .2px; }
+    header p { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.55; max-width: 46rem; }
     .badge {
-      display: inline-block; margin-top: 10px; padding: 3px 10px; border-radius: 999px;
-      background: #243044; color: var(--muted); font-size: 0.78rem;
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 10px; padding: 4px 11px; border-radius: 999px;
+      background: #1c2738; color: var(--muted); font-size: 0.76rem;
+      border: 1px solid var(--border);
     }
-    .grid { display: grid; gap: 16px; margin-top: 22px; }
-    @media (min-width: 800px) {
-      .grid { grid-template-columns: 1.1fr 0.9fr; }
+    .grid { display: grid; gap: 14px; margin-top: 18px; }
+    @media (min-width: 900px) {
+      .grid { grid-template-columns: 1fr 1.05fr; align-items: start; }
     }
     .card {
-      background: color-mix(in srgb, var(--panel) 92%, black);
+      background: color-mix(in srgb, var(--panel) 94%, black);
       border: 1px solid var(--border);
       border-radius: 14px;
-      padding: 18px 18px 16px;
-      box-shadow: 0 8px 30px rgba(0,0,0,.25);
+      padding: 16px 16px 14px;
+      box-shadow: 0 10px 28px rgba(0,0,0,.28);
     }
     .card h2 {
-      margin: 0 0 14px; font-size: 1rem; font-weight: 600;
+      margin: 0 0 12px; font-size: .98rem; font-weight: 600;
       display: flex; align-items: center; gap: 8px;
     }
-    .card h2 span.dot {
+    .card h2 .dot {
       width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
     }
-    label { display: block; font-size: 0.82rem; color: var(--muted); margin: 10px 0 5px; }
-    input[type="text"], input[type="number"], select {
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin: 10px 0 5px; }
+    input[type="text"], input[type="number"] {
       width: 100%; padding: 10px 12px; border-radius: 10px;
       border: 1px solid var(--border); background: var(--input); color: var(--text);
-      font-size: 0.95rem; outline: none;
+      font-size: 0.93rem; outline: none;
     }
-    input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.2); }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .checks { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; color: var(--muted); font-size: 0.9rem; }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .checks { display: flex; flex-wrap: wrap; gap: 12px 14px; margin-top: 8px; font-size: 0.88rem; }
     .checks label { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text); cursor: pointer; }
-    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
     button {
-      border: 0; border-radius: 10px; padding: 10px 14px; font-size: 0.92rem;
-      cursor: pointer; font-weight: 600; color: white;
-      transition: transform .08s ease, opacity .15s;
+      border: 0; border-radius: 10px; padding: 9px 13px; font-size: 0.88rem;
+      cursor: pointer; font-weight: 600; color: #fff;
+      transition: transform .08s ease, opacity .15s, filter .15s;
     }
+    button:hover { filter: brightness(1.06); }
     button:active { transform: scale(0.98); }
-    button:disabled { opacity: .45; cursor: not-allowed; }
+    button:disabled { opacity: .42; cursor: not-allowed; filter: none; }
     .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); }
     .btn-green { background: linear-gradient(135deg, #22c55e, #16a34a); }
     .btn-amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
-    .btn-ghost { background: #2a364a; color: var(--text); }
+    .btn-purple { background: linear-gradient(135deg, #a855f7, #7c3aed); }
+    .btn-ghost { background: #243044; color: var(--text); }
+
     .status {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
-      padding: 10px 12px; border-radius: 10px; background: #121a26; border: 1px solid var(--border);
-      font-size: 0.9rem;
+      display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px;
+      padding: 12px; border-radius: 12px; background: #0e1520; border: 1px solid var(--border);
     }
     .pill {
-      width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex-shrink: 0;
+      width: 11px; height: 11px; border-radius: 50%; background: var(--muted);
+      flex-shrink: 0; margin-top: 4px;
     }
-    .pill.run { background: var(--warn); box-shadow: 0 0 10px var(--warn); }
+    .pill.run {
+      background: var(--warn);
+      box-shadow: 0 0 0 0 rgba(245,158,11,.55);
+      animation: pulse 1.4s infinite;
+    }
     .pill.ok { background: var(--accent2); }
     .pill.err { background: var(--danger); }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(245,158,11,.5); }
+      70% { box-shadow: 0 0 0 10px rgba(245,158,11,0); }
+      100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+    }
+    #statusMsg { font-size: 0.95rem; font-weight: 600; line-height: 1.35; }
+    #statusMeta { color: var(--muted); font-size: 0.8rem; margin-top: 3px; line-height: 1.4; }
+
+    .progress-wrap {
+      margin: 0 0 12px; padding: 12px; border-radius: 12px;
+      background: #0c121b; border: 1px solid var(--border);
+      display: none;
+    }
+    .progress-wrap.show { display: block; }
+    .progress-title {
+      font-size: 0.86rem; margin-bottom: 8px; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .bar-track {
+      height: 12px; border-radius: 999px; background: #1a2433; overflow: hidden;
+      border: 1px solid #2a364a;
+    }
+    .bar-fill {
+      height: 100%; width: 0%; border-radius: 999px;
+      background: linear-gradient(90deg, #2563eb, #22c55e);
+      transition: width .4s ease;
+      position: relative;
+    }
+    .bar-fill::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
+      animation: sheen 1.8s infinite;
+    }
+    @keyframes sheen {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+    .progress-stats {
+      display: flex; flex-wrap: wrap; gap: 8px 14px;
+      margin-top: 8px; font-size: 0.78rem; color: var(--muted);
+    }
+    .progress-stats b { color: var(--text); font-weight: 600; }
+
+    .hint {
+      font-size: 0.78rem; color: var(--muted); line-height: 1.45;
+      margin: 0 0 10px; padding: 8px 10px; border-radius: 8px;
+      background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.18);
+      display: none;
+    }
+    .hint.show { display: block; }
+
     #pending {
-      max-height: 180px; overflow: auto; font-size: 0.85rem; color: var(--muted);
+      max-height: 160px; overflow: auto; font-size: 0.84rem; color: var(--muted);
       margin: 0 0 10px; padding: 0; list-style: none;
     }
     #pending li {
       padding: 6px 0; border-bottom: 1px dashed #243044;
+      display: flex; gap: 8px; align-items: baseline;
     }
-    #pending li strong { color: var(--text); font-weight: 500; }
+    #pending li strong { color: var(--text); font-weight: 500; flex: 1; }
+    .tag {
+      font-size: 0.72rem; padding: 1px 7px; border-radius: 999px;
+      border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
+    }
+    .tag.absent { color: #fca5a5; border-color: #7f1d1d; background: rgba(127,29,29,.25); }
+    .tag.present { color: #86efac; border-color: #14532d; background: rgba(20,83,45,.25); }
+
+    .log-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 6px; font-size: 0.84rem; color: var(--muted);
+    }
     #log {
-      height: 280px; overflow: auto; background: #0a0e14; border-radius: 10px;
-      border: 1px solid var(--border); padding: 12px; font-family: ui-monospace, Consolas, monospace;
-      font-size: 0.78rem; line-height: 1.45; white-space: pre-wrap; word-break: break-all;
+      height: 300px; overflow: auto; background: #070b10; border-radius: 10px;
+      border: 1px solid var(--border); padding: 11px; font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.76rem; line-height: 1.5; white-space: pre-wrap; word-break: break-all;
       color: #b7c5d9;
     }
+    #log .hi { color: #86efac; }
     footer {
-      margin-top: 20px; color: var(--muted); font-size: 0.8rem; line-height: 1.55;
+      margin-top: 18px; color: var(--muted); font-size: 0.78rem; line-height: 1.55;
     }
     footer a { color: #93c5fd; }
     .toast {
       position: fixed; right: 16px; bottom: 16px; background: #1f2937; border: 1px solid var(--border);
       color: var(--text); padding: 12px 16px; border-radius: 10px; display: none; z-index: 9;
-      max-width: 320px; box-shadow: 0 10px 40px rgba(0,0,0,.4);
+      max-width: 340px; box-shadow: 0 10px 40px rgba(0,0,0,.4); font-size: 0.9rem;
     }
+    #roomList { list-style: none; padding: 0; margin: 10px 0 0; max-height: 140px; overflow: auto; font-size: 0.84rem; }
+    #roomList li {
+      padding: 8px 0; border-bottom: 1px dashed #243044; cursor: pointer; color: var(--text);
+    }
+    #roomList li:hover { color: #93c5fd; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
       <h1>雨课堂 · 智·汇大讲堂 控制台</h1>
-      <p>在网页里填写课堂信息并提交任务。仅监听本机，请勿暴露到公网。运行即视为同意免责声明。</p>
-      <span class="badge">v{{ version }} · 非官方 · 仅观看回放</span>
+      <p>填写课堂后提交任务。回放会按倍速真实播放到有效进度（可能较久），右侧进度条与日志约 1 秒刷新，看到心跳即表示脚本在工作。</p>
+      <span class="badge">v{{ version }} · 本机 · 仅观看回放 · 不签到不答题</span>
     </header>
 
     <div class="grid">
       <section class="card">
-        <h2><span class="dot"></span> 提交配置</h2>
+        <h2><span class="dot"></span> 配置与任务</h2>
         <form id="cfgForm" onsubmit="return false;">
-          <label for="classroom_id">classroom_id（数字，不是 course_id）</label>
-          <input id="classroom_id" name="classroom_id" type="text" placeholder="例如 27586609" value="{{ classroom_id }}" />
+          <label for="classroom_id">classroom_id（不是 course_id）</label>
+          <input id="classroom_id" type="text" placeholder="例如 27586609" value="{{ classroom_id }}" />
 
-          <label for="course_url">或粘贴学习日志 URL</label>
-          <input id="course_url" name="course_url" type="text" placeholder="https://www.yuketang.cn/v2/web/studentLog/..." value="{{ course_url }}" />
+          <label for="course_url">或学习日志 URL</label>
+          <input id="course_url" type="text" placeholder="https://www.yuketang.cn/v2/web/studentLog/..." value="{{ course_url }}" />
 
           <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <button type="button" class="btn-ghost" id="btnRooms">刷新我的班级</button>
-            <span style="font-size:0.8rem;color:var(--muted)">登录后可一键填入正确 classroom_id</span>
+            <span style="font-size:0.78rem;color:var(--muted)">登录后点选正确班级</span>
           </div>
-          <ul id="roomList" style="list-style:none;padding:0;margin:10px 0 0;max-height:140px;overflow:auto;font-size:0.85rem"></ul>
+          <ul id="roomList"></ul>
 
           <div class="row">
             <div>
               <label for="playback_rate">播放倍速</label>
-              <input id="playback_rate" name="playback_rate" type="text" value="{{ playback_rate }}" />
+              <input id="playback_rate" type="text" value="{{ playback_rate }}" />
             </div>
             <div>
-              <label for="complete_ratio">有效进度比例 (0.5~1)</label>
-              <input id="complete_ratio" name="complete_ratio" type="number" min="0.5" max="1" step="0.01" value="{{ complete_ratio }}" />
+              <label for="complete_ratio">有效进度 (0.5~1)</label>
+              <input id="complete_ratio" type="number" min="0.5" max="1" step="0.01" value="{{ complete_ratio }}" />
             </div>
           </div>
 
           <div class="checks">
-            <label><input type="checkbox" id="headless" {% if headless %}checked{% endif %} /> 无头模式（首次登录请勿勾选）</label>
+            <label><input type="checkbox" id="headless" {% if headless %}checked{% endif %} /> 无头模式（首次登录勿勾）</label>
           </div>
 
-          <label style="margin-top:14px">观看范围（均只处理「未观看回放」）</label>
-          <div class="checks" style="margin-top:6px">
-            <label><input type="radio" name="attend_filter" value="all" checked /> 全部（无论是否签到）</label>
+          <label style="margin-top:12px">观看范围（只处理未看回放）</label>
+          <div class="checks">
+            <label><input type="radio" name="attend_filter" value="all" checked /> 全部（无论签到）</label>
             <label><input type="radio" name="attend_filter" value="absent" /> 仅缺勤</label>
             <label><input type="radio" name="attend_filter" value="present" /> 仅已签到</label>
           </div>
 
           <div class="actions">
-            <button type="button" class="btn-ghost" id="btnSave">保存配置</button>
+            <button type="button" class="btn-ghost" id="btnSave">保存</button>
             <button type="button" class="btn-primary" id="btnList">刷新待办</button>
             <button type="button" class="btn-amber" id="btnOnce">下一节</button>
             <button type="button" class="btn-green" id="btnAll">全部观看</button>
-            <button type="button" class="btn-amber" id="btnAllAbsent" style="background:linear-gradient(135deg,#a855f7,#7c3aed)">仅缺勤·全部</button>
+            <button type="button" class="btn-purple" id="btnAllAbsent">仅缺勤·全部</button>
           </div>
         </form>
       </section>
@@ -170,21 +252,42 @@
         <h2><span class="dot" style="background:#22c55e"></span> 运行状态</h2>
         <div class="status">
           <span class="pill" id="pill"></span>
-          <div>
+          <div style="min-width:0;flex:1">
             <div id="statusMsg">空闲</div>
-            <div style="color:var(--muted);font-size:0.8rem;margin-top:2px" id="statusMeta">—</div>
+            <div id="statusMeta">—</div>
           </div>
         </div>
-        <div style="font-size:0.85rem;color:var(--muted);margin-bottom:6px">待办预览</div>
+
+        <div class="hint" id="runHint">
+          一节 70 分钟课在 1.25x 下刷到 65% 大约要 <b>35 分钟墙钟</b>。日志出现「播放中 [████…]」即脚本正常。
+        </div>
+
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-title" id="progressTitle">—</div>
+          <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
+          <div class="progress-stats">
+            <span>进度 <b id="pPct">0%</b></span>
+            <span>目标 <b id="pTarget">65%</b></span>
+            <span>预计剩余 <b id="pEta">—</b></span>
+            <span>倍速 <b id="pRate">—</b></span>
+            <span>本节 <b id="pIndex">—</b></span>
+          </div>
+        </div>
+
+        <div style="font-size:0.84rem;color:var(--muted);margin-bottom:6px">待办预览</div>
         <ul id="pending"></ul>
-        <div style="font-size:0.85rem;color:var(--muted);margin-bottom:6px">日志</div>
+
+        <div class="log-head">
+          <span>实时日志</span>
+          <span id="logMeta">0 行 · 自动滚动</span>
+        </div>
         <div id="log"></div>
       </section>
     </div>
 
     <footer>
-      默认地址 <code>http://127.0.0.1:8765</code>。配置写入本机 <code>config.yaml</code>，登录态在 <code>data/</code>。
-      详见项目 <a href="/disclaimer" target="_blank">免责声明</a>。不伪造签到、不答题。
+      <code>http://127.0.0.1:8765</code> · 配置 <code>config.yaml</code> · 登录态 <code>data/</code> ·
+      <a href="/disclaimer" target="_blank">免责声明</a>
     </footer>
   </div>
   <div class="toast" id="toast"></div>
@@ -194,12 +297,19 @@
     const logEl = $("log");
     const pendingEl = $("pending");
     let lastLogLen = 0;
+    let stickBottom = true;
+
+    logEl.addEventListener("scroll", () => {
+      const near = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 40;
+      stickBottom = near;
+    });
 
     function toast(msg) {
       const t = $("toast");
       t.textContent = msg;
       t.style.display = "block";
-      setTimeout(() => { t.style.display = "none"; }, 2600);
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => { t.style.display = "none"; }, 2800);
     }
 
     function selectedFilter() {
@@ -246,43 +356,84 @@
       pollStatus();
     }
 
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      })[c]);
+    }
+
+    function renderProgress(s) {
+      const p = s.progress || {};
+      const wrap = $("progressWrap");
+      const hint = $("runHint");
+      if (s.running && (p.phase === "playing" || p.phase === "opening" || p.pct != null)) {
+        wrap.classList.add("show");
+        hint.classList.add("show");
+        const pct = Number(p.pct || 0);
+        const target = Number(p.target_pct || 65);
+        const toward = target > 0 ? Math.min(100, (pct / target) * 100) : pct;
+        $("barFill").style.width = `${toward}%`;
+        $("progressTitle").textContent = p.title
+          ? `${p.index || "?"} / ${p.total || "?"} · ${p.title}`
+          : (s.message || "播放中…");
+        $("pPct").textContent = `${pct.toFixed(1)}%`;
+        $("pTarget").textContent = `${target}%`;
+        $("pEta").textContent = p.eta_text || (p.eta_sec != null ? `${p.eta_sec}s` : "—");
+        $("pRate").textContent = p.rate != null ? `${p.rate}x` : "—";
+        $("pIndex").textContent = (p.index && p.total) ? `${p.index}/${p.total}` : "—";
+      } else if (!s.running) {
+        wrap.classList.remove("show");
+        hint.classList.remove("show");
+      } else {
+        hint.classList.add("show");
+      }
+    }
+
     function renderStatus(s) {
       $("statusMsg").textContent = s.message || "—";
       $("statusMeta").textContent = s.running
-        ? `运行中 · ${s.action || ""}`
-        : `空闲 · 成功 ${s.done || 0} / 失败 ${s.fail || 0}`;
+        ? `运行中 · ${s.action || ""} · 成功 ${s.done || 0} / 失败 ${s.fail || 0}`
+        : `空闲 · 上次 成功 ${s.done || 0} / 失败 ${s.fail || 0}`;
       const pill = $("pill");
       pill.className = "pill";
       if (s.running) pill.classList.add("run");
       else if (s.ok === true) pill.classList.add("ok");
       else if (s.ok === false) pill.classList.add("err");
 
+      renderProgress(s);
+
       pendingEl.innerHTML = "";
       (s.pending_preview || []).forEach((it, i) => {
         const li = document.createElement("li");
-        li.innerHTML = `<strong>${i + 1}. ${escapeHtml(it.title || "")}</strong>`
-          + ` <span style="opacity:.7">(${it.attend ? "已签到" : "缺勤"})</span>`;
+        const tag = it.attend
+          ? '<span class="tag present">已签到</span>'
+          : '<span class="tag absent">缺勤</span>';
+        li.innerHTML = `${tag}<strong>${i + 1}. ${escapeHtml(it.title || "")}</strong>`;
         pendingEl.appendChild(li);
       });
 
       const logs = s.logs || [];
       if (logs.length !== lastLogLen) {
-        logEl.textContent = logs.join("\n");
-        logEl.scrollTop = logEl.scrollHeight;
+        // 高亮心跳行
+        logEl.innerHTML = logs.map((line) => {
+          const e = escapeHtml(line);
+          if (line.includes("[replay]") && (line.includes("播放中") || line.includes("%"))) {
+            return `<span class="hi">${e}</span>`;
+          }
+          return e;
+        }).join("\n");
+        if (stickBottom) logEl.scrollTop = logEl.scrollHeight;
         lastLogLen = logs.length;
+        $("logMeta").textContent = `${logs.length} 行 · ${stickBottom ? "自动滚动" : "已固定"}`;
       }
 
       const busy = !!s.running;
-      ["btnSave","btnList","btnOnce","btnAll"].forEach((id) => {
+      ["btnSave","btnList","btnOnce","btnAll","btnAllAbsent","btnRooms"].forEach((id) => {
+        const el = $(id);
+        if (!el) return;
         if (id === "btnSave") return;
-        $(id).disabled = busy;
+        el.disabled = busy;
       });
-    }
-
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, (c) => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-      })[c]);
     }
 
     async function pollStatus() {
@@ -299,17 +450,12 @@
       const data = await res.json();
       const list = $("roomList");
       list.innerHTML = "";
-      if (!data.ok) {
-        toast(data.error || "拉取失败");
-        return;
-      }
+      if (!data.ok) { toast(data.error || "拉取失败"); return; }
       (data.classrooms || []).forEach((r) => {
         const li = document.createElement("li");
-        li.style.cssText = "padding:8px 0;border-bottom:1px dashed #243044;cursor:pointer;color:var(--text)";
         li.innerHTML = `<strong>${escapeHtml(r.label || r.name || "")}</strong>`
-          + `<div style="color:var(--muted);font-size:0.78rem">classroom_id=${escapeHtml(r.classroom_id)}`
-          + (r.course_id ? ` · course_id=${escapeHtml(r.course_id)}` : "")
-          + `</div>`;
+          + `<div style="color:var(--muted);font-size:0.76rem">classroom=${escapeHtml(r.classroom_id)}`
+          + (r.course_id ? ` · course=${escapeHtml(r.course_id)}` : "") + `</div>`;
         li.onclick = () => {
           $("classroom_id").value = r.classroom_id;
           $("course_url").value = `https://www.yuketang.cn/v2/web/studentLog/${r.classroom_id}`;
@@ -325,16 +471,15 @@
     $("btnList").onclick = () => runAction("list");
     $("btnOnce").onclick = () => runAction("once");
     $("btnAll").onclick = () => {
-      if (!confirm("将按当前筛选连续观看全部待办回放，可能耗时很长。确定？")) return;
+      if (!confirm("将连续观看全部待办，单节可能需数十分钟。确定？")) return;
       runAction("all");
     };
     $("btnAllAbsent").onclick = () => {
       document.querySelector('input[name="attend_filter"][value="absent"]').checked = true;
-      if (!confirm("仅观看「缺勤且未看回放」的全部课程，确定？")) return;
+      if (!confirm("仅观看缺勤且未看回放的全部课程？")) return;
       runAction("all", "absent");
     };
 
-    // 恢复上次筛选
     (function restoreFilter() {
       const v = "{{ attend_filter|default('all') }}";
       const el = document.querySelector(`input[name="attend_filter"][value="${v}"]`);
@@ -342,7 +487,7 @@
     })();
 
     pollStatus();
-    setInterval(pollStatus, 1500);
+    setInterval(pollStatus, 1000);
   </script>
 </body>
 </html>

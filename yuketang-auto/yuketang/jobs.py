@@ -47,13 +47,29 @@ class JobState:
     pending_preview: list[dict[str, Any]] = field(default_factory=list)
     done: int = 0
     fail: int = 0
-    logs: deque[str] = field(default_factory=lambda: deque(maxlen=500))
+    progress: dict[str, Any] = field(default_factory=dict)
+    logs: deque[str] = field(default_factory=lambda: deque(maxlen=800))
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     def log(self, line: str) -> None:
         with self._lock:
             self.logs.append(line)
         print(line)
+
+    def set_progress(self, info: dict[str, Any]) -> None:
+        with self._lock:
+            self.progress = dict(info or {})
+            # 同步到 message，方便一眼看到还在跑
+            title = str(info.get("title") or "")[:36]
+            pct = info.get("pct")
+            eta = info.get("eta_text") or ""
+            phase = info.get("phase") or ""
+            if pct is not None and phase == "playing":
+                self.message = f"播放中 {pct}% · 约{eta}达线" + (f" · {title}" if title else "")
+            elif phase == "opening":
+                self.message = f"打开回放… {title}".strip()
+            elif phase == "done":
+                self.message = f"本节完成 {title}".strip()
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
@@ -65,7 +81,8 @@ class JobState:
                 "pending_preview": list(self.pending_preview),
                 "done": self.done,
                 "fail": self.fail,
-                "logs": list(self.logs)[-200:],
+                "progress": dict(self.progress),
+                "logs": list(self.logs)[-250:],
             }
 
 
@@ -240,6 +257,22 @@ def run_automation(
         for idx, item in enumerate(targets, 1):
             log("-" * 40)
             log(f"[job] ({idx}/{len(targets)}) {item.title}")
+            STATE.set_progress(
+                {
+                    "title": item.title,
+                    "pct": 0.0,
+                    "phase": "opening",
+                    "index": idx,
+                    "total": len(targets),
+                }
+            )
+
+            def _on_prog(info: dict[str, Any], _idx=idx, _n=len(targets)) -> None:
+                info = dict(info)
+                info["index"] = _idx
+                info["total"] = _n
+                STATE.set_progress(info)
+
             ok = watch_replay(
                 page,
                 classroom_id=classroom_id,
@@ -249,6 +282,8 @@ def run_automation(
                 complete_ratio=complete_ratio,
                 max_watch_sec=max_watch,
                 log=log,
+                on_progress=_on_prog,
+                title=item.title,
             )
             if ok:
                 progress.mark_done(item.key, item.title)
@@ -303,6 +338,7 @@ def start_job_async(
         STATE.done = 0
         STATE.fail = 0
         STATE.pending_preview = []
+        STATE.progress = {}
         try:
             result = run_automation(
                 root=root,

@@ -190,6 +190,7 @@ def run_watch_batch(
             complete_ratio=complete_ratio,
             max_watch_sec=max_watch,
             log=print,
+            title=item.title,
         )
         if ok:
             progress.mark_done(item.key, item.title)
