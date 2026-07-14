@@ -1,8 +1,9 @@
-# 英华学堂本地助手（yinghua-auto）
+# 英华学堂 · 本地学习进度助手（yinghua-auto）
 
 **v0.1.0 · M1** · 非官方 · 仅限**本人账号**自用 · 风险见 [DISCLAIMER.md](DISCLAIMER.md)
 
-Playwright 本地自动化，结构对齐 `yuketang-auto`：登录态、列课、刷视频、断点续跑、本机 Web（8766）、`nfctl` 供 NarraFork / 脚本调用。
+> **作品集表述**：基于 Playwright 的**本机浏览器自动化编排**——登录态管理、课程目录解析、学习进度状态、断点续跑、本机 Web 控制面（`127.0.0.1:8766`）与 `nfctl` CLI。结构对齐 `yuketang-auto`。  
+> **不是**官方客户端；请遵守学校与平台用户协议，勿用于未授权账号或对抗性用途。
 
 验收勾选见 [ACCEPTANCE.md](ACCEPTANCE.md) · 本版说明见 [RELEASE_NOTES_v0.1.0.md](RELEASE_NOTES_v0.1.0.md)
 
