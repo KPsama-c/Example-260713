@@ -1,18 +1,18 @@
-# yuketang-auto：无私钥、不连真站、不安装浏览器
-name: yuketang-auto CI
+# yinghua-auto：无私钥、不连真站、不安装浏览器
+name: yinghua-auto CI
 
 on:
   push:
     paths:
-      - "yuketang-auto/**"
-      - ".github/workflows/yuketang-auto-ci.yml"
+      - "yinghua-auto/**"
+      - ".github/workflows/yinghua-auto-ci.yml"
   pull_request:
     paths:
-      - "yuketang-auto/**"
-      - ".github/workflows/yuketang-auto-ci.yml"
+      - "yinghua-auto/**"
+      - ".github/workflows/yinghua-auto-ci.yml"
 
 concurrency:
-  group: yuketang-auto-ci-${{ github.workflow }}-${{ github.ref }}
+  group: yinghua-auto-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: yuketang-auto
+        working-directory: yinghua-auto
     steps:
       - uses: actions/checkout@v4
 
@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: yuketang-auto/requirements.txt
+          cache-dependency-path: yinghua-auto/requirements.txt
 
       - name: Install
         run: |
@@ -37,7 +37,7 @@ jobs:
           pip install "pytest>=7" "ruff>=0.4"
 
       - name: Ruff
-        run: ruff check yuketang tests webapp.py main.py
+        run: ruff check yinghua tests webapp.py main.py nfctl.py
 
       - name: Pytest
         run: pytest -q
