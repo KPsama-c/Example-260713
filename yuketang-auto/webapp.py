@@ -23,7 +23,7 @@ from flask import Flask, jsonify, render_template, request
 
 from yuketang import __version__
 from yuketang.browser import BrowserSession
-from yuketang.classrooms import fetch_joined_classrooms, rooms_to_dicts
+from yuketang.classrooms import fetch_joined_classrooms_detailed, rooms_to_dicts
 from yuketang.doctor import run_doctor
 from yuketang.history import load_run_history
 from yuketang.jobs import (
@@ -57,6 +57,11 @@ def _public_cfg() -> dict:
     cfg = load_settings(CONFIG_PATH)
     _, cid, _ = resolve_runtime(cfg) if has_classroom(cfg) else ("", "", [])
     profiles = list_profiles(cfg)
+    try:
+        tail = float(cfg.get("tail_seek_sec", 90))
+    except (TypeError, ValueError):
+        tail = 90.0
+    tail = max(30.0, min(tail, 180.0))
     return {
         "version": __version__,
         "classroom_id": cid or (cfg.get("classroom_id") or "") or "",
@@ -67,6 +72,13 @@ def _public_cfg() -> dict:
         "headless": bool(cfg.get("headless", False)),
         "profiles": profiles,
         "active_profile": str(cfg.get("active_profile") or "") or "",
+        "resume_partial": bool(cfg.get("resume_partial", True)),
+        "allow_skip_ahead": bool(cfg.get("allow_skip_ahead", False)),
+        "allow_checkin_assist": bool(cfg.get("allow_checkin_assist", False)),
+        "tail_seek_sec": tail,
+        "require_threshold_before_tail": bool(
+            cfg.get("require_threshold_before_tail", True)
+        ),
     }
 
 
@@ -117,6 +129,22 @@ def api_save_settings():
     if "headless" in data:
         cfg["headless"] = bool(data.get("headless"))
 
+    # 能力边界（可选；未传则保持原配置）
+    for key in (
+        "resume_partial",
+        "allow_skip_ahead",
+        "allow_checkin_assist",
+        "require_threshold_before_tail",
+    ):
+        if key in data:
+            cfg[key] = bool(data.get(key))
+    if "tail_seek_sec" in data:
+        try:
+            ts = float(data.get("tail_seek_sec"))
+            cfg["tail_seek_sec"] = max(30.0, min(ts, 180.0))
+        except (TypeError, ValueError):
+            pass
+
     af = str(data.get("attend_filter") or cfg.get("attend_filter") or "all").strip().lower()
     if af in ("all", "absent", "present"):
         cfg["attend_filter"] = af
@@ -140,6 +168,7 @@ def api_save_settings():
 
     save_settings(CONFIG_PATH, cfg)
     primary, cid, _ = resolve_runtime(cfg)
+    pub = _public_cfg()
     return jsonify({
         "ok": True,
         "classroom_id": cid,
@@ -150,6 +179,11 @@ def api_save_settings():
         "headless": cfg.get("headless"),
         "profiles": list_profiles(cfg),
         "active_profile": str(cfg.get("active_profile") or ""),
+        "resume_partial": pub.get("resume_partial"),
+        "allow_skip_ahead": pub.get("allow_skip_ahead"),
+        "allow_checkin_assist": pub.get("allow_checkin_assist"),
+        "tail_seek_sec": pub.get("tail_seek_sec"),
+        "require_threshold_before_tail": pub.get("require_threshold_before_tail"),
     })
 
 
@@ -287,10 +321,12 @@ def api_run():
         action = action.replace("_absent", "")
     if action in ("soft_only", "retry_soft"):
         action = "soft"
-    if action not in ("list", "once", "all", "selected", "soft"):
+    if action in ("full_force", "force_all", "full_all", "force"):
+        action = "full"
+    if action not in ("list", "once", "all", "selected", "soft", "full"):
         return jsonify({
             "ok": False,
-            "message": "action 必须是 list/once/all/selected/soft",
+            "message": "action 必须是 list/once/all/selected/soft/full",
         }), 400
 
     # 观看类任务需前端勾选免责（list 仅刷新待办也要求，强化知情）
@@ -366,9 +402,28 @@ def api_classrooms():
     if not storage.exists():
         return jsonify({
             "ok": False,
-            "error": "尚未登录。请先填写任意课堂并「刷新待办」完成一次登录。",
+            "error": "尚未登录。请取消无头，填写课堂后点「刷新待办」完成登录。",
             "classrooms": [],
+            "auth_failed": True,
         }), 400
+
+    # 快速预检：storage 里没有 sessionid 时几乎必然拉不到班
+    try:
+        import json as _json
+
+        st = _json.loads(storage.read_text(encoding="utf-8"))
+        cookie_names = {c.get("name") for c in (st.get("cookies") or []) if isinstance(c, dict)}
+        if "sessionid" not in cookie_names:
+            from yuketang.classrooms import auth_error_user_message
+
+            return jsonify({
+                "ok": False,
+                "error": auth_error_user_message("本地 storage 无 sessionid"),
+                "classrooms": [],
+                "auth_failed": True,
+            }), 401
+    except Exception:
+        pass
 
     try:
         with BrowserSession(headless=True, storage_state=storage) as session:
@@ -379,15 +434,27 @@ def api_classrooms():
                 wait_until="domcontentloaded",
             )
             page.wait_for_timeout(1500)
-            rooms = fetch_joined_classrooms(page, log=print)
-            session.save_state()
+            result = fetch_joined_classrooms_detailed(page, log=print)
+            # 仅在认证仍有效时回写 cookie，避免把失效态覆盖成「更空」
+            if result.ok and not result.auth_failed:
+                session.save_state()
     except Exception as e:
         return jsonify({"ok": False, "error": f"拉取班级失败: {e}", "classrooms": []}), 500
 
+    if not result.ok:
+        status = 401 if result.auth_failed else 502
+        return jsonify({
+            "ok": False,
+            "error": result.error or "拉取班级失败",
+            "classrooms": [],
+            "auth_failed": bool(result.auth_failed),
+        }), status
+
     return jsonify({
         "ok": True,
-        "classrooms": rooms_to_dicts(rooms),
-        "message": f"共 {len(rooms)} 个班级",
+        "classrooms": rooms_to_dicts(result.rooms),
+        "message": f"共 {len(result.rooms)} 个班级",
+        "auth_failed": False,
     })
 
 

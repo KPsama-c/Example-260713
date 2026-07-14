@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from yuketang.browser import BrowserSession
+from yuketang.capabilities import PlaybackCapabilities
 from yuketang.job_state import STATE, LogFn
 from yuketang.login import is_logged_in
+from yuketang.logs import is_attended
 from yuketang.pending_ops import DEFAULT_LESSON_SEC
 from yuketang.progress import FailedStore, PartialStore, ProgressStore, SoftStore
 from yuketang.replay import ReplayResult, watch_replay
@@ -43,23 +45,29 @@ def watch_lesson_batch(
     update_state: bool = False,
     partial: PartialStore | None = None,
     resume_partial: bool = True,
+    capabilities: PlaybackCapabilities | None = None,
+    observe_attend: bool = False,
 ) -> dict[str, Any]:
     """共享观看循环。
 
-    返回 {done, fail, soft_done, cancelled}。
+    返回 {done, fail, soft_done, cancelled, attend_ok}。
     仅 platform_confirmed 才 mark_done；本地达标未确认记 soft。
+    capabilities：跳播/签到辅助/续播边界（None=默认保守）。
+    observe_attend：播完后拉日志观测 attend_status（全量模式）。
     """
     log = log or print
     cancel_fn = should_cancel or (lambda: False)
     done_count = 0
     fail_count = 0
     soft_count = 0
+    attend_ok_count = 0
     cancelled = False
     if not targets:
         return {
             "done": 0,
             "fail": 0,
             "soft_done": 0,
+            "attend_ok": 0,
             "cancelled": False,
         }
 
@@ -154,6 +162,7 @@ def watch_lesson_batch(
                 soft_boost=soft_boost,
                 partial=partial,
                 resume_partial=resume_partial,
+                capabilities=capabilities,
             )
             if result.cancelled or result.platform_confirmed or result.ok:
                 break
@@ -178,7 +187,7 @@ def watch_lesson_batch(
                 partial.remove(cid, item.lesson_id)
             done_count += 1
             session.save_state()
-            log("[job] [OK] 平台已确认，已写入断点")
+            log("[job] [OK] 平台已确认「已观看回放」，已写入断点")
         elif result.ok:
             soft_count += 1
             session.save_state()
@@ -219,6 +228,30 @@ def watch_lesson_batch(
                     "（下次可续播）"
                 )
 
+        # 全量/签到辅助：播后观测平台签到态（不改 API，只读）
+        if observe_attend and not result.cancelled and (result.ok or result.platform_confirmed):
+            try:
+                page.wait_for_timeout(1200)
+            except Exception:
+                pass
+            att = is_attended(
+                page,
+                cid,
+                item.lesson_id,
+                origin=origin,
+                allow_navigation=True,
+            )
+            if att is True:
+                attend_ok_count += 1
+                log("[job] [签到观测] 平台 attend_status=已签到")
+            elif att is False:
+                log(
+                    "[job] [签到观测] 平台仍为缺勤（片尾 seek 未保证签到；"
+                    "以雨课堂为准，本工具不改签到字段）"
+                )
+            else:
+                log("[job] [签到观测] 无法读取签到态（列表拉取失败）")
+
         if idx - 1 < len(remain_content):
             remain_content[idx - 1] = 0.0
 
@@ -229,7 +262,7 @@ def watch_lesson_batch(
 
         if idx < len(targets) and not cancel_fn():
             delay = random.uniform(pause_lo, pause_hi)
-            log(f"[job] 休息 {delay:.1f}s")
+            log(f"[job] 休息 {delay:.1f}s → 下一节")
             end_sleep = time.time() + delay
             while time.time() < end_sleep:
                 if cancel_fn():
@@ -243,5 +276,6 @@ def watch_lesson_batch(
         "done": done_count,
         "fail": fail_count,
         "soft_done": soft_count,
+        "attend_ok": attend_ok_count,
         "cancelled": cancelled or cancel_fn(),
     }

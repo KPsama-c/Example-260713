@@ -122,6 +122,7 @@ def print_main_menu(cfg: dict[str, Any], rate: float) -> None:
     print("  [7] 从浏览器当前页识别课堂 ID")
     print("  [8] 配置档（列出 / 切换 / 保存当前 / 删除）")
     print("  [9] 仅 SOFT 再跑（本地达标未平台确认）")
+    print("  [f] 全量观看（含已看回放；本地 soft/progress≥阈值才跳过；片尾 seek 试签到）")
     print("  [0] 退出")
     print("=" * 56)
 
@@ -140,7 +141,7 @@ def pick_action() -> str:
         return "all_absent"
     if raw in ("5", "s", "set", "settings"):
         return "settings"
-    if raw in ("6", "f", "filter"):
+    if raw in ("6", "filter"):
         return "filter"
     if raw in ("7", "b", "browser"):
         return "browser_id"
@@ -148,6 +149,8 @@ def pick_action() -> str:
         return "profiles"
     if raw in ("9", "soft", "soft_only", "retry_soft"):
         return "soft"
+    if raw in ("f", "full", "full_force", "force_all", "全量"):
+        return "full"
     return raw
 
 

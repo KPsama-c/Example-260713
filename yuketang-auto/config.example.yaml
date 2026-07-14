@@ -47,6 +47,16 @@ partial_file: "data/partial.json"
 skip_local_complete_on_all: true
 # 打开回放时从 partial 续播（seek 到本机曾观测位置，非伪造心跳）
 resume_partial: true
+# —— 能力边界（默认全关激进项；风险自负）——
+# 跳播：本地达 complete_ratio 后，真 seek 到片尾前 tail_seek_sec 并真播完
+allow_skip_ahead: false
+# 签到辅助：语义同片尾 seek（不调用签到 API、不改 attend_status）
+# 平台最终是否「已签到」以雨课堂为准；本工具不保证签到
+allow_checkin_assist: false
+# 片尾真播秒数（硬限制 30–180）
+tail_seek_sec: 90
+# 片尾 seek 前必须已达 complete_ratio（防止开局跳尾）
+require_threshold_before_tail: true
 max_videos: 0
 wait_login_timeout_sec: 180
 screenshot_on_error: true

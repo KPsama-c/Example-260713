@@ -5,199 +5,270 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>雨课堂 · 智汇大讲堂 控制台</title>
   <style>
+    /* Direction A · Operational Calm Console */
     :root {
-      --bg: #0b1017;
-      --panel: #141c28;
-      --border: #2a374c;
-      --text: #e8eef7;
-      --muted: #8b9bb4;
+      --bg: #0c1118;
+      --panel: #121a24;
+      --elevated: #0e1520;
+      --border: #243041;
+      --text: #e6edf6;
+      --muted: #8b9bb0;
       --accent: #3b82f6;
-      --accent2: #22c55e;
+      --ok: #22c55e;
       --warn: #f59e0b;
       --danger: #ef4444;
-      --purple: #a855f7;
       --input: #0a0f16;
+      --ghost: #1a2433;
+      --radius: 10px;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      background:
-        radial-gradient(1000px 500px at 8% -8%, #1a3358 0%, transparent 55%),
-        radial-gradient(800px 420px at 100% 0%, #163528 0%, transparent 48%),
-        var(--bg);
+      background: var(--bg);
       color: var(--text);
       min-height: 100vh;
+      line-height: 1.5;
     }
-    .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
-    header h1 { margin: 0 0 6px; font-size: 1.4rem; font-weight: 650; letter-spacing: .2px; }
-    header p { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.55; max-width: 46rem; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: var(--space-5) var(--space-4) 48px; }
+    header h1 {
+      margin: 0 0 6px; font-size: 1.28rem; font-weight: 600; letter-spacing: .15px;
+    }
+    header p {
+      margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; max-width: 46rem;
+    }
+    header p b { color: var(--text); font-weight: 600; }
     .badge {
       display: inline-flex; align-items: center; gap: 6px;
-      margin-top: 10px; padding: 4px 11px; border-radius: 999px;
-      background: #1c2738; color: var(--muted); font-size: 0.76rem;
+      margin-top: 10px; padding: 3px 10px; border-radius: 999px;
+      background: var(--elevated); color: var(--muted); font-size: 0.74rem;
       border: 1px solid var(--border);
     }
-    .grid { display: grid; gap: 14px; margin-top: 18px; }
+    .grid { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
     @media (min-width: 900px) {
-      .grid { grid-template-columns: 1fr 1.05fr; align-items: start; }
+      .grid { grid-template-columns: 1fr 1.08fr; align-items: start; }
     }
     .card {
-      background: color-mix(in srgb, var(--panel) 94%, black);
+      background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px 16px 14px;
-      box-shadow: 0 10px 28px rgba(0,0,0,.28);
+      border-radius: 12px;
+      padding: var(--space-4) var(--space-4) var(--space-3);
     }
     .card h2 {
-      margin: 0 0 12px; font-size: .98rem; font-weight: 600;
-      display: flex; align-items: center; gap: 8px;
+      margin: 0 0 var(--space-3); font-size: .94rem; font-weight: 600;
+      display: flex; align-items: center; gap: 8px; color: var(--text);
     }
     .card h2 .dot {
-      width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
-      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+      width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.12);
     }
-    label { display: block; font-size: 0.8rem; color: var(--muted); margin: 10px 0 5px; }
-    input[type="text"], input[type="number"] {
-      width: 100%; padding: 10px 12px; border-radius: 10px;
+    label { display: block; font-size: 0.78rem; color: var(--muted); margin: 10px 0 5px; }
+    input[type="text"], input[type="number"], select {
+      width: 100%; padding: 9px 11px; border-radius: var(--radius);
       border: 1px solid var(--border); background: var(--input); color: var(--text);
-      font-size: 0.93rem; outline: none;
+      font-size: 0.9rem; outline: none;
     }
-    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.18); }
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.16);
+    }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .checks { display: flex; flex-wrap: wrap; gap: 12px 14px; margin-top: 8px; font-size: 0.88rem; }
+    .checks { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: var(--space-2); font-size: 0.86rem; }
     .checks label { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text); cursor: pointer; }
-    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-    button {
-      border: 0; border-radius: 10px; padding: 9px 13px; font-size: 0.88rem;
-      cursor: pointer; font-weight: 600; color: #fff;
-      transition: transform .08s ease, opacity .15s, filter .15s;
+
+    .action-block { margin-top: var(--space-4); }
+    .action-label {
+      font-size: 0.72rem; color: var(--muted); letter-spacing: .04em;
+      text-transform: none; margin: 0 0 6px; font-weight: 500;
     }
-    button:hover { filter: brightness(1.06); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0; }
+    .actions.tight { margin-top: var(--space-2); }
+    button {
+      border: 1px solid transparent; border-radius: var(--radius);
+      padding: 8px 12px; font-size: 0.86rem;
+      cursor: pointer; font-weight: 600; color: var(--text);
+      background: var(--ghost);
+      transition: background .12s ease, border-color .12s ease, opacity .12s ease, transform .08s ease;
+    }
+    button:hover { background: #223044; }
     button:active { transform: scale(0.98); }
-    button:disabled { opacity: .42; cursor: not-allowed; filter: none; }
-    .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-    .btn-green { background: linear-gradient(135deg, #22c55e, #16a34a); }
-    .btn-amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
-    .btn-purple { background: linear-gradient(135deg, #a855f7, #7c3aed); }
-    .btn-ghost { background: #243044; color: var(--text); }
-    .btn-danger { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    button:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+    /* 主路径：仅「全部观看」实心蓝 */
+    .btn-primary {
+      background: var(--accent); color: #fff; border-color: #2563eb;
+    }
+    .btn-primary:hover { background: #2563eb; }
+    /* 次要运行：扁平面，无彩虹渐变 */
+    .btn-run {
+      background: var(--ghost); color: var(--text); border-color: var(--border);
+    }
+    .btn-run:hover { border-color: #3a4d66; background: #1e2a3c; }
+    /* SOFT / 需注意：描边琥珀，不当大块填色 */
+    .btn-soft {
+      background: transparent; color: #fbbf24;
+      border-color: rgba(245,158,11,.45);
+    }
+    .btn-soft:hover { background: rgba(245,158,11,.1); }
+    .btn-ghost {
+      background: var(--ghost); color: var(--text); border-color: var(--border);
+      font-weight: 500;
+    }
+    .btn-ghost:hover { background: #223044; }
+    .btn-danger {
+      background: transparent; color: #fca5a5;
+      border-color: rgba(239,68,68,.5);
+    }
+    .btn-danger:hover:not(:disabled) { background: rgba(239,68,68,.12); }
+    .btn-danger:not(:disabled) {
+      background: rgba(239,68,68,.14); color: #fecaca; border-color: #ef4444;
+    }
+    /* 兼容旧 class 名（若 JS/缓存残留） */
+    .btn-green, .btn-amber, .btn-purple { background: var(--ghost); color: var(--text); border-color: var(--border); }
 
     .status {
-      display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px;
-      padding: 12px; border-radius: 12px; background: #0e1520; border: 1px solid var(--border);
+      display: flex; align-items: flex-start; gap: 10px; margin-bottom: var(--space-3);
+      padding: var(--space-3); border-radius: 12px;
+      background: var(--elevated); border: 1px solid var(--border);
     }
     .pill {
-      width: 11px; height: 11px; border-radius: 50%; background: var(--muted);
-      flex-shrink: 0; margin-top: 4px;
+      width: 10px; height: 10px; border-radius: 50%; background: var(--muted);
+      flex-shrink: 0; margin-top: 5px;
     }
     .pill.run {
       background: var(--warn);
-      box-shadow: 0 0 0 0 rgba(245,158,11,.55);
-      animation: pulse 1.4s infinite;
+      box-shadow: 0 0 0 0 rgba(245,158,11,.45);
+      animation: pulse 1.5s infinite;
     }
-    .pill.ok { background: var(--accent2); }
+    .pill.ok { background: var(--ok); }
     .pill.err { background: var(--danger); }
     @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(245,158,11,.5); }
-      70% { box-shadow: 0 0 0 10px rgba(245,158,11,0); }
+      0% { box-shadow: 0 0 0 0 rgba(245,158,11,.45); }
+      70% { box-shadow: 0 0 0 8px rgba(245,158,11,0); }
       100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
     }
-    #statusMsg { font-size: 0.95rem; font-weight: 600; line-height: 1.35; }
-    #statusMeta { color: var(--muted); font-size: 0.8rem; margin-top: 3px; line-height: 1.4; }
+    #statusMsg { font-size: 0.94rem; font-weight: 600; line-height: 1.35; }
+    #statusMeta { color: var(--muted); font-size: 0.78rem; margin-top: 3px; line-height: 1.4; }
 
     .progress-wrap {
-      margin: 0 0 12px; padding: 12px; border-radius: 12px;
-      background: #0c121b; border: 1px solid var(--border);
+      margin: 0 0 var(--space-3); padding: var(--space-3); border-radius: 12px;
+      background: var(--elevated); border: 1px solid var(--border);
       display: none;
     }
     .progress-wrap.show { display: block; }
     .progress-title {
-      font-size: 0.86rem; margin-bottom: 8px; color: var(--text);
+      font-size: 0.84rem; margin-bottom: 8px; color: var(--text);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .bar-track {
-      height: 12px; border-radius: 999px; background: #1a2433; overflow: hidden;
-      border: 1px solid #2a364a;
+      height: 10px; border-radius: 999px; background: #1a2433; overflow: hidden;
+      border: 1px solid var(--border);
     }
     .bar-fill {
       height: 100%; width: 0%; border-radius: 999px;
-      background: linear-gradient(90deg, #2563eb, #22c55e);
-      transition: width .4s ease;
+      background: linear-gradient(90deg, #2563eb, #16a34a);
+      transition: width .35s ease;
       position: relative;
     }
     .bar-fill::after {
       content: "";
       position: absolute; inset: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent);
-      animation: sheen 1.8s infinite;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+      animation: sheen 2.2s infinite;
     }
     @keyframes sheen {
       0% { transform: translateX(-100%); }
       100% { transform: translateX(100%); }
     }
+    @media (prefers-reduced-motion: reduce) {
+      .pill.run { animation: none; }
+      .bar-fill::after { animation: none; display: none; }
+      button:active { transform: none; }
+    }
     .progress-stats {
-      display: flex; flex-wrap: wrap; gap: 8px 14px;
-      margin-top: 8px; font-size: 0.78rem; color: var(--muted);
+      display: flex; flex-wrap: wrap; gap: 6px 12px;
+      margin-top: 8px; font-size: 0.76rem; color: var(--muted);
     }
     .progress-stats b { color: var(--text); font-weight: 600; }
 
     .hint {
-      font-size: 0.78rem; color: var(--muted); line-height: 1.45;
+      font-size: 0.76rem; color: var(--muted); line-height: 1.45;
       margin: 0 0 10px; padding: 8px 10px; border-radius: 8px;
-      background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.18);
+      background: rgba(59,130,246,.06); border: 1px solid rgba(59,130,246,.14);
       display: none;
     }
     .hint.show { display: block; }
+
+    .block-head {
+      font-size: 0.8rem; color: var(--muted); margin: 12px 0 6px;
+      display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
 
     #pending {
       max-height: 160px; overflow: auto; font-size: 0.84rem; color: var(--muted);
       margin: 0 0 10px; padding: 0; list-style: none;
     }
     #pending li {
-      padding: 6px 0; border-bottom: 1px dashed #243044;
+      padding: 7px 0; border-bottom: 1px solid #1c2634;
       display: flex; gap: 8px; align-items: baseline;
     }
     #pending li strong { color: var(--text); font-weight: 500; flex: 1; }
     .tag {
-      font-size: 0.72rem; padding: 1px 7px; border-radius: 999px;
+      font-size: 0.7rem; padding: 1px 7px; border-radius: 999px;
       border: 1px solid var(--border); color: var(--muted); white-space: nowrap;
     }
-    .tag.absent { color: #fca5a5; border-color: #7f1d1d; background: rgba(127,29,29,.25); }
-    .tag.present { color: #86efac; border-color: #14532d; background: rgba(20,83,45,.25); }
+    .tag.absent { color: #fca5a5; border-color: #7f1d1d; background: rgba(127,29,29,.22); }
+    .tag.present { color: #86efac; border-color: #14532d; background: rgba(20,83,45,.22); }
 
     .log-head {
       display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 6px; font-size: 0.84rem; color: var(--muted);
+      margin-bottom: 6px; font-size: 0.8rem; color: var(--muted);
     }
     #log {
-      height: 300px; overflow: auto; background: #070b10; border-radius: 10px;
-      border: 1px solid var(--border); padding: 11px; font-family: ui-monospace, Consolas, monospace;
-      font-size: 0.76rem; line-height: 1.5; white-space: pre-wrap; word-break: break-all;
-      color: #b7c5d9;
+      height: 300px; overflow: auto; background: #070b10; border-radius: var(--radius);
+      border: 1px solid var(--border); padding: 10px; font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.75rem; line-height: 1.45; white-space: pre-wrap; word-break: break-all;
+      color: #a8b8cc;
     }
     #log .hi { color: #86efac; }
     footer {
-      margin-top: 18px; color: var(--muted); font-size: 0.78rem; line-height: 1.55;
+      margin-top: var(--space-4); color: var(--muted); font-size: 0.76rem; line-height: 1.55;
     }
     footer a { color: #93c5fd; }
     .toast {
-      position: fixed; right: 16px; bottom: 16px; background: #1f2937; border: 1px solid var(--border);
-      color: var(--text); padding: 12px 16px; border-radius: 10px; display: none; z-index: 9;
-      max-width: 340px; box-shadow: 0 10px 40px rgba(0,0,0,.4); font-size: 0.9rem;
+      position: fixed; right: 16px; bottom: 16px; background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text); padding: 12px 16px; border-radius: var(--radius); display: none; z-index: 9;
+      max-width: 340px; font-size: 0.88rem;
     }
     #roomList { list-style: none; padding: 0; margin: 10px 0 0; max-height: 140px; overflow: auto; font-size: 0.84rem; }
     #roomList li {
-      padding: 8px 0; border-bottom: 1px dashed #243044; cursor: pointer; color: var(--text);
+      padding: 8px 0; border-bottom: 1px solid #1c2634; cursor: pointer; color: var(--text);
     }
     #roomList li:hover { color: #93c5fd; }
+    #softList, #runHistory {
+      font-size: 0.8rem; color: var(--muted); max-height: 140px; overflow: auto;
+      margin: 0 0 10px; padding-left: 18px;
+    }
+    #runHistory { max-height: 120px; }
 
-    /* 窄屏：按钮全宽、双列改单列、日志略矮、触摸更易点 */
+    .profile-row {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .profile-row select { flex: 1; min-width: 160px; }
+
     @media (max-width: 640px) {
       .wrap { padding: 14px 10px 36px; }
-      header h1 { font-size: 1.18rem; }
-      header p { font-size: 0.84rem; }
-      .card { padding: 14px 12px 12px; border-radius: 12px; }
+      header h1 { font-size: 1.14rem; }
+      header p { font-size: 0.82rem; }
+      .card { padding: 14px 12px 12px; }
       .row { grid-template-columns: 1fr; }
       .actions { flex-direction: column; }
       .actions button { width: 100%; padding: 11px 12px; }
@@ -210,10 +281,10 @@
         font-size: 0.86rem;
       }
       .status { flex-wrap: wrap; }
-      #profileSelect { min-width: 0 !important; width: 100%; }
+      .profile-row select { min-width: 0; width: 100%; }
     }
     @media (max-width: 400px) {
-      header h1 { font-size: 1.08rem; }
+      header h1 { font-size: 1.06rem; }
       button { font-size: 0.84rem; }
     }
   </style>
@@ -231,13 +302,13 @@
         <h2><span class="dot"></span> 配置与任务</h2>
         <form id="cfgForm" onsubmit="return false;">
           <label for="profileSelect">配置档（多课堂切换）</label>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-            <select id="profileSelect" style="flex:1;min-width:160px;background:var(--input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px">
+          <div class="profile-row">
+            <select id="profileSelect">
               <option value="">— 当前未保存配置档 —</option>
             </select>
             <button type="button" class="btn-ghost" id="btnProfileSwitch">切换</button>
             <button type="button" class="btn-ghost" id="btnProfileAdd">加入配置档</button>
-            <button type="button" class="btn-ghost" id="btnProfileDel" style="opacity:.85">删除</button>
+            <button type="button" class="btn-ghost" id="btnProfileDel">删除</button>
           </div>
           <input type="hidden" id="profile_name" value="{{ active_profile }}" />
 
@@ -247,9 +318,9 @@
           <label for="course_url">或学习日志 URL</label>
           <input id="course_url" type="text" placeholder="https://www.yuketang.cn/v2/web/studentLog/..." value="{{ course_url }}" />
 
-          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div class="profile-row" style="margin-top:10px">
             <button type="button" class="btn-ghost" id="btnRooms">刷新我的班级</button>
-            <span style="font-size:0.78rem;color:var(--muted)">登录后点选；点选可加入配置档</span>
+            <span style="font-size:0.76rem;color:var(--muted)">登录后点选；点选可加入配置档</span>
           </div>
           <ul id="roomList"></ul>
 
@@ -269,6 +340,22 @@
             <label><input type="checkbox" id="acceptRisk" /> 我已阅读 <a href="/disclaimer" target="_blank" style="color:var(--accent)">免责声明</a>，仅自用、后果自负</label>
           </div>
 
+          <label style="margin-top:12px">能力边界（默认保守）</label>
+          <div class="checks">
+            <label><input type="checkbox" id="resume_partial" {% if resume_partial %}checked{% endif %} /> 续播（从本机 partial 真 seek 续上）</label>
+            <label><input type="checkbox" id="allow_skip_ahead" {% if allow_skip_ahead %}checked{% endif %} /> 跳播/片尾（达线后 seek 到片尾前 N 秒真播）</label>
+            <label><input type="checkbox" id="allow_checkin_assist" {% if allow_checkin_assist %}checked{% endif %} /> 签到辅助（同上片尾真播；不改签到 API）</label>
+          </div>
+          <div class="row" style="margin-top:8px">
+            <div>
+              <label for="tail_seek_sec">片尾真播秒数 (30–180)</label>
+              <input id="tail_seek_sec" type="number" min="30" max="180" step="10" value="{{ tail_seek_sec }}" />
+            </div>
+          </div>
+          <p style="font-size:0.72rem;color:var(--muted);margin:6px 0 0;line-height:1.45">
+            开启跳播/签到辅助后：本地达有效进度才片尾 seek；不伪造心跳。平台「已签到」以雨课堂为准，本工具不保证。
+          </p>
+
           <label style="margin-top:12px">观看范围（只处理未看回放）</label>
           <div class="checks">
             <label><input type="radio" name="attend_filter" value="all" checked /> 全部（无论签到）</label>
@@ -276,26 +363,38 @@
             <label><input type="radio" name="attend_filter" value="present" /> 仅已签到</label>
           </div>
 
-          <div class="actions">
-            <button type="button" class="btn-ghost" id="btnSave">保存</button>
-            <button type="button" class="btn-primary" id="btnList">刷新待办</button>
-            <button type="button" class="btn-amber" id="btnOnce">下一节</button>
-            <button type="button" class="btn-green" id="btnAll">全部观看</button>
-            <button type="button" class="btn-purple" id="btnSelected">观看勾选</button>
-            <button type="button" class="btn-purple" id="btnAllAbsent">仅缺勤·全部</button>
-            <button type="button" class="btn-amber" id="btnSoft">仅 SOFT 再跑</button>
-            <button type="button" class="btn-danger" id="btnStop" disabled>停止</button>
+          <div class="action-block">
+            <p class="action-label">主操作</p>
+            <div class="actions">
+              <button type="button" class="btn-primary" id="btnAll">全部观看</button>
+              <button type="button" class="btn-run" id="btnFull" title="含已观看回放；仅本地 soft/progress≥阈值跳过；达线片尾 seek 试签到">全量观看</button>
+              <button type="button" class="btn-run" id="btnOnce">下一节</button>
+              <button type="button" class="btn-run" id="btnSelected">观看勾选</button>
+              <button type="button" class="btn-run" id="btnAllAbsent">仅缺勤·全部</button>
+              <button type="button" class="btn-soft" id="btnSoft">仅 SOFT 再跑</button>
+              <button type="button" class="btn-danger" id="btnStop" disabled>停止</button>
+            </div>
           </div>
-          <div class="actions" style="margin-top:8px">
-            <button type="button" class="btn-ghost" id="btnClearProg" style="font-size:0.8rem;opacity:.9">清除本地断点</button>
-            <button type="button" class="btn-ghost" id="btnClearFail" style="font-size:0.8rem;opacity:.9">清除失败记录</button>
-            <button type="button" class="btn-ghost" id="btnDoctor" style="font-size:0.8rem;opacity:.9">环境自检</button>
+          <div class="action-block" style="margin-top:12px">
+            <p class="action-label">配置与查询</p>
+            <div class="actions">
+              <button type="button" class="btn-ghost" id="btnSave">保存</button>
+              <button type="button" class="btn-ghost" id="btnList">刷新待办</button>
+            </div>
+          </div>
+          <div class="action-block" style="margin-top:12px">
+            <p class="action-label">维护</p>
+            <div class="actions">
+              <button type="button" class="btn-ghost" id="btnClearProg" style="font-size:0.8rem">清除本地断点</button>
+              <button type="button" class="btn-ghost" id="btnClearFail" style="font-size:0.8rem">清除失败记录</button>
+              <button type="button" class="btn-ghost" id="btnDoctor" style="font-size:0.8rem">环境自检</button>
+            </div>
           </div>
         </form>
       </section>
 
       <section class="card">
-        <h2><span class="dot" style="background:#22c55e"></span> 运行状态</h2>
+        <h2><span class="dot" style="background:var(--ok)"></span> 运行状态</h2>
         <div class="status">
           <span class="pill" id="pill"></span>
           <div style="min-width:0;flex:1">
@@ -308,7 +407,7 @@
           70 分钟课 1.25x 刷到 65% 约 <b>35 分钟墙钟</b>。日志「播放中 [##--…]」即正常。本地达标但平台未确认不会写断点。
         </div>
 
-        <div id="doneBanner" style="display:none;margin:10px 0;padding:10px 12px;border-radius:10px;border:1px solid #166534;background:#052e16;color:#86efac;font-size:0.9rem"></div>
+        <div id="doneBanner" style="display:none;margin:10px 0;padding:10px 12px;border-radius:10px;border:1px solid #166534;background:#0a1f14;color:#86efac;font-size:0.88rem"></div>
 
         <div class="progress-wrap" id="progressWrap">
           <div class="progress-title" id="progressTitle">—</div>
@@ -323,7 +422,7 @@
           </div>
         </div>
 
-        <div style="font-size:0.84rem;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <div class="block-head">
           <span>待办预览（可勾选后「观看勾选」）</span>
           <span style="display:flex;gap:8px">
             <button type="button" class="btn-ghost" id="btnSelAll" style="font-size:0.75rem;padding:4px 8px">全选</button>
@@ -332,20 +431,20 @@
         </div>
         <ul id="pending"></ul>
 
-        <div style="font-size:0.84rem;color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <div class="block-head">
           <span>SOFT 待确认（本地达标未写断点）</span>
           <span style="display:flex;gap:8px">
             <button type="button" class="btn-ghost" id="btnSoftRefresh" style="font-size:0.72rem;padding:3px 8px">刷新</button>
             <button type="button" class="btn-ghost" id="btnSoftClear" style="font-size:0.72rem;padding:3px 8px">清除本课</button>
           </span>
         </div>
-        <ul id="softList" style="font-size:0.8rem;color:var(--muted);max-height:140px;overflow:auto;margin:0 0 10px;padding-left:18px"></ul>
+        <ul id="softList"></ul>
 
-        <div style="font-size:0.84rem;color:var(--muted);margin:12px 0 6px;display:flex;justify-content:space-between;align-items:center">
+        <div class="block-head">
           <span>最近运行（最多 10 条，无课程标题）</span>
           <button type="button" class="btn-ghost" id="btnHistRefresh" style="font-size:0.72rem;padding:3px 8px">刷新</button>
         </div>
-        <ul id="runHistory" style="font-size:0.8rem;color:var(--muted);max-height:120px;overflow:auto;margin:0 0 10px;padding-left:18px"></ul>
+        <ul id="runHistory"></ul>
 
         <div class="log-head">
           <span>实时日志</span>
@@ -419,6 +518,10 @@
         headless: $("headless").checked,
         attend_filter: selectedFilter(),
         profile_name: ($("profile_name") && $("profile_name").value.trim()) || "",
+        resume_partial: $("resume_partial") ? $("resume_partial").checked : true,
+        allow_skip_ahead: $("allow_skip_ahead") ? $("allow_skip_ahead").checked : false,
+        allow_checkin_assist: $("allow_checkin_assist") ? $("allow_checkin_assist").checked : false,
+        tail_seek_sec: parseFloat(($("tail_seek_sec") && $("tail_seek_sec").value) || "90"),
       };
     }
 
@@ -447,7 +550,7 @@
     }
 
     function setRunButtons(running) {
-      ["btnList", "btnOnce", "btnAll", "btnAllAbsent", "btnSoft", "btnSelected", "btnSelAll", "btnSelNone", "btnProfileSwitch", "btnProfileAdd", "btnProfileDel", "profileSelect", "btnSoftClear", "btnDoctor"].forEach((id) => {
+      ["btnList", "btnOnce", "btnAll", "btnFull", "btnAllAbsent", "btnSoft", "btnSelected", "btnSelAll", "btnSelNone", "btnProfileSwitch", "btnProfileAdd", "btnProfileDel", "profileSelect", "btnSoftClear", "btnDoctor"].forEach((id) => {
         if ($(id)) $(id).disabled = !!running;
       });
       $("btnStop").disabled = !running;
@@ -824,12 +927,43 @@
 
     async function loadRooms() {
       toast("正在拉取班级…");
-      const res = await fetch("/api/classrooms");
-      const data = await res.json();
       const list = $("roomList");
+      list.innerHTML = "<li style='color:var(--muted)'>拉取中…</li>";
+      let data;
+      try {
+        const res = await fetch("/api/classrooms");
+        data = await res.json();
+      } catch (e) {
+        list.innerHTML = "<li style='color:#fca5a5'>请求失败</li>";
+        toast("拉取班级请求失败");
+        return;
+      }
       list.innerHTML = "";
-      if (!data.ok) { toast(data.error || "拉取失败"); return; }
-      (data.classrooms || []).forEach((r) => {
+      if (!data.ok) {
+        const err = data.error || "拉取失败";
+        const li = document.createElement("li");
+        li.style.color = "#fca5a5";
+        li.style.cursor = "default";
+        li.style.whiteSpace = "normal";
+        li.style.lineHeight = "1.45";
+        li.textContent = data.auth_failed
+          ? "登录失效：请取消无头 → 刷新待办 → 浏览器里登录，再点本按钮"
+          : err;
+        list.appendChild(li);
+        toast(data.auth_failed ? "登录已失效，见列表提示" : err);
+        return;
+      }
+      const rooms = data.classrooms || [];
+      if (!rooms.length) {
+        const li = document.createElement("li");
+        li.style.color = "var(--muted)";
+        li.style.cursor = "default";
+        li.textContent = "账号下暂无班级（已登录但列表为空）";
+        list.appendChild(li);
+        toast(data.message || "共 0 个班级");
+        return;
+      }
+      rooms.forEach((r) => {
         const li = document.createElement("li");
         li.innerHTML = `<strong>${escapeHtml(r.label || r.name || "")}</strong>`
           + `<div style="color:var(--muted);font-size:0.76rem">classroom=${escapeHtml(r.classroom_id)}`
@@ -839,7 +973,6 @@
           $("course_url").value = `https://www.yuketang.cn/v2/web/studentLog/${r.classroom_id}`;
           const name = r.label || r.name || r.classroom_id;
           if ($("profile_name")) $("profile_name").value = name;
-          // 点选即加入并激活配置档
           const res = await fetch("/api/profile/upsert", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -879,6 +1012,17 @@
       if (!confirm("将连续观看全部待办，单节可能需数十分钟。确定？")) return;
       runAction("all");
     };
+    if ($("btnFull")) {
+      $("btnFull").onclick = () => {
+        if (!confirm(
+          "全量观看：处理学习日志中全部节（含已观看回放）。\n"
+          + "仅本地 soft/progress≥有效进度 才跳过；\n"
+          + "达线后片尾真 seek 并观测签到（不保证签到成功）。\n"
+          + "有 partial 才续播，否则从 0。确定？"
+        )) return;
+        runAction("full");
+      };
+    }
     $("btnSelected").onclick = () => {
       const ids = selectedLessonIds();
       if (!ids.length) { toast("请先勾选课程"); return; }

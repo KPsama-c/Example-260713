@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from yuketang.browser import BrowserSession
+from yuketang.capabilities import capabilities_from_cfg, log_capabilities
 from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
 from yuketang.history import append_run_history
 from yuketang.job_state import STATE, JobState, LogFn
@@ -24,6 +25,7 @@ from yuketang.logs import LogsApiError, normalize_attend_filter
 from yuketang.pending_ops import (
     DEFAULT_LESSON_SEC,
     enrich_duration_map,
+    filter_skip_full_force,
     filter_skip_local_complete,
     load_pending_for_classroom,
     normalize_job_action,
@@ -48,6 +50,7 @@ __all__ = [
     "clear_failed_store",
     "clear_progress_store",
     "enrich_duration_map",
+    "filter_skip_full_force",
     "filter_skip_local_complete",
     "load_pending_for_classroom",
     "normalize_job_action",
@@ -68,7 +71,7 @@ def run_automation(
     attend_filter: str | None = None,
     lesson_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    """同步执行。action: list | once | all | selected | soft。"""
+    """同步执行。action: list | once | all | selected | soft | full。"""
     log = log or print
     try:
         action, force_af = normalize_job_action(action)
@@ -80,6 +83,7 @@ def run_automation(
     af = normalize_attend_filter(
         attend_filter if attend_filter is not None else cfg.get("attend_filter", "all")
     )
+    is_full = action == "full"
 
     if not has_classroom(cfg):
         return {"ok": False, "error": "请先填写 classroom_id 或学习日志 URL"}
@@ -104,7 +108,19 @@ def run_automation(
     retry_per_lesson = max(0, int(cfg.get("retry_per_lesson", 1)))
     shot_on_err = bool(cfg.get("screenshot_on_error", True))
     skip_local_on_all = bool(cfg.get("skip_local_complete_on_all", True))
-    resume_partial = bool(cfg.get("resume_partial", True))
+    caps = capabilities_from_cfg(cfg)
+    if is_full:
+        # 全量：强制片尾 seek 试签到；续播仍尊重 partial 有无（无记录从 0）
+        from yuketang.capabilities import PlaybackCapabilities
+
+        caps = PlaybackCapabilities(
+            resume_partial=True,
+            allow_skip_ahead=True,
+            allow_checkin_assist=True,
+            tail_seek_sec=caps.tail_seek_sec,
+            require_threshold_before_tail=True,
+        )
+    resume_partial = bool(caps.resume_partial)
     pause_cfg = cfg.get("pause_between_sec", [2, 6])
     if isinstance(pause_cfg, (list, tuple)) and len(pause_cfg) >= 2:
         pause_lo, pause_hi = float(pause_cfg[0]), float(pause_cfg[1])
@@ -132,7 +148,15 @@ def run_automation(
     log(
         f"[job] action={action} filter={af_label} classroom={classroom_id} "
         f"rate={rate}x headless={headless} require_platform={require_platform}"
+        + (" full_force=1" if is_full else "")
     )
+    log_capabilities(caps, log=log)
+    if is_full:
+        log(
+            "[job] 全量观看：忽略平台「已观看/签到」筛选；"
+            f"仅本地 soft/progress≥{complete_ratio*100:.0f}% 跳过；"
+            "达线后片尾真 seek 并观测签到态；有 partial 才续播否则从 0"
+        )
 
     with BrowserSession(headless=headless, storage_state=storage) as session:
         page = session.page
@@ -182,9 +206,10 @@ def run_automation(
                 origin=origin,
                 progress=progress,
                 soft=soft,
-                attend_filter=af,
+                attend_filter=af if not is_full else "all",
                 log=log,
-                reconcile=True,
+                reconcile=not is_full,
+                list_mode="full" if is_full else "pending",
             )
         except LogsApiError as e:
             return {
@@ -222,7 +247,8 @@ def run_automation(
             duration_map.get(it.lesson_id, DEFAULT_LESSON_SEC) for it in pending
         )
         est_wall_all = (total_content * complete_ratio) / max(rate, 0.5)
-        log(f"[job] 待观看 {len(pending)} 节（{af_label}）")
+        mode_label = "全量" if is_full else af_label
+        log(f"[job] 待观看 {len(pending)} 节（{mode_label}）")
         if pending:
             log(
                 f"[job] 内容合计约 {total_content/60:.0f} 分钟，"
@@ -230,11 +256,20 @@ def run_automation(
             )
         for i, it in enumerate(pending, 1):
             tag = "缺勤" if not it.attend_status else "已签到"
+            viewed_tag = " 已看回放" if getattr(it, "live_viewed", False) else ""
             soft_tag = " SOFT" if it.lesson_id in soft_ids else ""
+            prog_tag = (
+                " 断点"
+                if progress.is_lesson_done(str(classroom_id), it.lesson_id)
+                else ""
+            )
             pp = float(partial_map.get(it.lesson_id, 0.0))
             part_tag = f" 续{pp*100:.0f}%" if pp >= 0.02 and it.lesson_id not in soft_ids else ""
             dm = duration_map.get(it.lesson_id, DEFAULT_LESSON_SEC) / 60
-            log(f"  {i}. [{tag}{soft_tag}{part_tag}] {it.title} (~{dm:.0f}分)")
+            log(
+                f"  {i}. [{tag}{viewed_tag}{soft_tag}{prog_tag}{part_tag}] "
+                f"{it.title} (~{dm:.0f}分)"
+            )
 
         STATE.pending_preview = pending_preview
         STATE.batch = {
@@ -292,6 +327,42 @@ def run_automation(
                     "finished": True,
                 }
             log(f"[job] 仅 SOFT 重试：{len(targets)} 节")
+        elif action == "full":
+            targets, skipped_full = filter_skip_full_force(
+                pending,
+                classroom_id=str(classroom_id),
+                complete_ratio=complete_ratio,
+                progress=progress,
+                soft=soft,
+            )
+            if skipped_full:
+                log(
+                    f"[job] 全量：跳过本地 soft/progress≥{complete_ratio*100:.0f}% 的 "
+                    f"{len(skipped_full)} 节"
+                )
+                for it, r, why in skipped_full[:8]:
+                    log(
+                        f"  - skip [{why} {r*100:.0f}%] "
+                        f"{getattr(it, 'title', it.lesson_id)}"
+                    )
+                if len(skipped_full) > 8:
+                    log(f"  - …另 {len(skipped_full) - 8} 节")
+            if not targets:
+                return {
+                    "ok": True,
+                    "done": 0,
+                    "fail": 0,
+                    "soft_done": 0,
+                    "pending": pending_preview,
+                    "classroom_id": classroom_id,
+                    "message": (
+                        f"全量：均已本地 soft/progress≥{complete_ratio*100:.0f}%，"
+                        f"跳过 {len(skipped_full)} 节"
+                    ),
+                    "finished": True,
+                    "skipped_local": len(skipped_full),
+                }
+            log(f"[job] 全量将处理 {len(targets)} 节（片尾 seek 试签到）")
         elif action == "selected":
             want = {str(x) for x in (lesson_ids or [])}
             if not want:
@@ -386,10 +457,13 @@ def run_automation(
             update_state=True,
             partial=partial,
             resume_partial=resume_partial,
+            capabilities=caps,
+            observe_attend=is_full,
         )
         done_count = int(batch_result.get("done") or 0)
         fail_count = int(batch_result.get("fail") or 0)
         soft_count = int(batch_result.get("soft_done") or 0)
+        attend_ok = int(batch_result.get("attend_ok") or 0)
 
         try:
             page.goto(
@@ -412,11 +486,14 @@ def run_automation(
         session.save_state()
 
     cancelled = bool(batch_result.get("cancelled")) or STATE.is_cancel_requested()
+    attend_ok = int(batch_result.get("attend_ok") or 0)
     msg_parts = [
-        f"成功(平台确认) {done_count}",
+        f"成功(平台确认回放) {done_count}",
         f"本地未确认 {soft_count}",
         f"失败 {fail_count}",
     ]
+    if is_full:
+        msg_parts.append(f"签到观测已签到 {attend_ok}")
     if cancelled:
         msg_parts.append("已取消")
     if action != "list":
@@ -429,6 +506,7 @@ def run_automation(
                     "done": done_count,
                     "soft": soft_count,
                     "fail": fail_count,
+                    "attend_ok": attend_ok,
                     "cancelled": cancelled,
                     "classroom_id": str(classroom_id),
                 },
@@ -440,6 +518,7 @@ def run_automation(
         "done": done_count,
         "fail": fail_count,
         "soft_done": soft_count,
+        "attend_ok": attend_ok,
         "pending": pending_preview,
         "classroom_id": classroom_id,
         "cancelled": cancelled,

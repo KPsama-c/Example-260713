@@ -9,6 +9,11 @@ from typing import Callable
 from playwright.sync_api import Locator, Page
 
 from yuketang import selectors as S
+from yuketang.capabilities import (
+    PlaybackCapabilities,
+    compute_tail_seek_time,
+    may_tail_seek,
+)
 from yuketang.logs import (
     basic_info_finish_replay,
     is_live_viewed,
@@ -216,17 +221,23 @@ def watch_replay(
     soft_boost: float = 0.10,
     partial: PartialStore | None = None,
     resume_partial: bool = True,
+    capabilities: PlaybackCapabilities | None = None,
 ) -> ReplayResult:
     """打开 overview 并播到有效进度。
 
     complete_ratio：本地阈值（默认 65%）。
     confirm_grace_sec：达线后继续真实播放并轮询平台确认的宽限秒数。
     soft_boost：未确认时再往上播的比例（如 0.10 → 最高 min(ratio+0.10, 0.95)）。
+    capabilities：跳播/签到辅助/续播边界；None 时仅用 resume_partial（默认保守）。
     返回 ReplayResult：仅 platform_confirmed=True 时上层应写入断点。
 
     播放过程中绝不 page.goto 离开 overview。
     续播：仅 seek 到本机 partial 曾观测到的 currentTime（真实续播，不伪造心跳）。
+    片尾 seek：仅当 capabilities 显式允许且已达阈值时，真 seek 到 duration-tail_sec。
     """
+    caps = capabilities or PlaybackCapabilities(resume_partial=resume_partial)
+    # 参数与 capabilities 对齐：显式 resume_partial 覆盖 caps 中的开关
+    do_resume = bool(resume_partial and caps.resume_partial)
     def _cancelled() -> bool:
         return bool(should_cancel and should_cancel())
 
@@ -384,9 +395,12 @@ def watch_replay(
     grace_until = 0.0  # >0 表示宽限中
     boosted = False
 
+    # 片尾 seek 状态（skip_ahead / checkin_assist）
+    tail_seek_done = False
+
     # 续播：恢复已观测段 + seek 到上次 segment_time（仅当播放器回到更早位置）
     resume_item = None
-    if partial is not None and resume_partial:
+    if partial is not None and do_resume:
         resume_item = partial.get(str(classroom_id), str(lesson_id))
     if resume_item is not None and float(resume_item.local_ratio or 0) >= 0.02:
         for k in resume_item.finished_keys or []:
@@ -534,6 +548,49 @@ def watch_replay(
         snap["src_suffix"] = src_key
 
         if progress >= ratio and watched_sec > 5:
+            # 达线：可选片尾真 seek（skip_ahead / checkin_assist）→ grace → soft_boost
+            if (
+                not tail_seek_done
+                and may_tail_seek(
+                    caps,
+                    local_ratio=progress,
+                    complete_ratio=primary_ratio,
+                    already_done=tail_seek_done,
+                )
+            ):
+                seek_t = compute_tail_seek_time(d, caps.tail_seek_sec)
+                # 仅当播放器明显落后于片尾目标时才 seek（避免已在尾部时空跳）
+                if seek_t is not None and t + 8.0 < seek_t:
+                    mode = (
+                        "签到辅助"
+                        if caps.allow_checkin_assist
+                        else "跳播/片尾"
+                    )
+                    log(
+                        f"[replay] 本地已达 {progress*100:.1f}%，"
+                        f"能力边界允许{mode}：真 seek → {seek_t:.0f}s "
+                        f"(片长 {d:.0f}s，尾段真播约 {caps.tail_seek_sec:.0f}s)"
+                    )
+                    if _seek_video(video, seek_t):
+                        tail_seek_done = True
+                        try:
+                            _apply_rate_muted(video, rate)
+                        except Exception:
+                            pass
+                        page.wait_for_timeout(800)
+                        # 片尾 seek 后进入 grace，让尾段真实播放并轮询
+                        if grace_until <= 0 and grace_sec > 0:
+                            grace_until = time.time() + max(grace_sec, int(caps.tail_seek_sec / max(rate, 0.5)) + 15)
+                            log(
+                                f"[replay] 片尾 seek 后进入确认宽限 "
+                                f"{_fmt_eta(int(grace_until - time.time()))}（真播尾段）"
+                            )
+                        continue
+                    log("[replay] 片尾 seek 失败，继续从当前位置真播")
+                    tail_seek_done = True  # 避免死循环反复 seek
+                else:
+                    tail_seek_done = True  # 已在尾部或无法计算
+
             # 达线：先 grace 继续真播 + 轮询；仍未确认则 soft_boost 抬高阈值
             if grace_until <= 0:
                 log(
@@ -548,9 +605,10 @@ def watch_replay(
                     )
                 if grace_sec > 0:
                     grace_until = time.time() + grace_sec
+                    no_skip = "不跳播" if not caps.tail_seek_enabled else "尾段真播中"
                     log(
                         f"[replay] 进入确认宽限 {_fmt_eta(grace_sec)} "
-                        "（继续播放并轮询平台，不跳播）"
+                        f"（继续播放并轮询平台，{no_skip}）"
                     )
                 else:
                     grace_until = time.time()  # 立即走 boost/结束分支
@@ -565,6 +623,28 @@ def watch_replay(
                     return _result(
                         ok=True, confirmed=True, ratio_v=progress, reason="grace_confirmed"
                     )
+                # 若允许片尾但尚未 seek，再给一次机会（boost 前）
+                if (
+                    not tail_seek_done
+                    and may_tail_seek(
+                        caps,
+                        local_ratio=progress,
+                        complete_ratio=primary_ratio,
+                    )
+                ):
+                    seek_t = compute_tail_seek_time(d, caps.tail_seek_sec)
+                    if seek_t is not None and t + 8.0 < seek_t and _seek_video(video, seek_t):
+                        tail_seek_done = True
+                        log(
+                            f"[replay] 宽限结束前片尾真 seek → {seek_t:.0f}s，继续真播尾段"
+                        )
+                        grace_until = time.time() + max(30, int(caps.tail_seek_sec / max(rate, 0.5)) + 10)
+                        try:
+                            _apply_rate_muted(video, rate)
+                        except Exception:
+                            pass
+                        continue
+                    tail_seek_done = True
                 if not boosted and max_ratio > ratio + 0.001:
                     boosted = True
                     old = ratio

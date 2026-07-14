@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.9.4] - 2026-07-14
+
+### 全量观看 `full`
+- 新动作 **full**（Web「全量观看」/ 菜单 `[f]` / CLI `--full`）
+- 列表：学习日志**全部节**（含平台已观看回放），不按签到/回放筛掉
+- 跳过：仅本地 `progress` 已完成 **或** `soft.local_ratio ≥ complete_ratio`；**不看**平台 live_viewed/签到
+- 播放：有 `partial` 才续播，否则从 0；达线后**强制**片尾真 seek（试签到），播后只读观测 `attend_status`
+- 不对签到 API 写字段；签到是否成功以雨课堂为准
+- 全量模式启动时跳过「平台对账补写断点」，避免未刷就被 mark_done
+
+## [0.9.3] - 2026-07-14
+
+### 能力边界（跳播 / 签到辅助 / 续播）
+- 新增 `yuketang/capabilities.py`：统一解析 `resume_partial` / `allow_skip_ahead` / `allow_checkin_assist` / `tail_seek_sec`
+- **默认保守**：续播开；跳播与签到辅助关
+- 开启跳播或签到辅助后：仅在本地达 `complete_ratio` 后，**真 seek** 到 `duration - tail_seek_sec` 并真播尾段（不伪造心跳、不改签到 API）
+- `tail_seek_sec` 硬限制 30–180；`require_threshold_before_tail` 默认 true
+- 任务启动日志打印能力摘要；激进项会打醒目提示
+
+## [0.9.2] - 2026-07-14
+
+### Web 班级列表
+- 「刷新我的班级」区分 **登录失效** 与 **真的 0 个班**（不再把 401/无 sessionid 显示成「共 0 个」）
+- 本地 storage 无 `sessionid` 时快速失败并提示：取消无头 → 刷新待办重新登录
+
 ## [0.9.1] - 2026-07-13
 
 ### 跳过语义收紧

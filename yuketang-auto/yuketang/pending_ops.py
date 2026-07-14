@@ -162,6 +162,45 @@ def filter_skip_local_complete(
     return kept, skipped
 
 
+def filter_skip_full_force(
+    pending: list,
+    *,
+    classroom_id: str,
+    complete_ratio: float,
+    progress: ProgressStore | None = None,
+    soft: SoftStore | None = None,
+) -> tuple[list, list[tuple[Any, float, str]]]:
+    """「全量观看」跳过：本地 soft/progress ≥ complete_ratio 才跳过。
+
+    - progress 已 mark_done → 视为 1.0，跳过
+    - soft.local_ratio ≥ complete_ratio → 跳过
+    - 不看平台 live_viewed / attend_status
+    - partial 不参与跳过（只续播）
+
+    返回 (保留, [(item, ratio, reason), ...])。
+    """
+    if not pending:
+        return [], []
+    thr = max(0.0, min(float(complete_ratio), 1.0))
+    cid = str(classroom_id)
+    soft_ratios = soft_local_ratio_map(soft, cid)
+    kept: list = []
+    skipped: list[tuple[Any, float, str]] = []
+    for it in pending:
+        lid = str(getattr(it, "lesson_id", "") or "")
+        if not lid:
+            continue
+        if progress is not None and progress.is_lesson_done(cid, lid):
+            skipped.append((it, 1.0, "progress"))
+            continue
+        r = float(soft_ratios.get(lid, 0.0))
+        if lid in soft_ratios and r + 1e-9 >= thr:
+            skipped.append((it, r, "soft"))
+            continue
+        kept.append(it)
+    return kept, skipped
+
+
 def load_pending_for_classroom(
     page,
     classroom_id: str,
@@ -174,9 +213,11 @@ def load_pending_for_classroom(
     reconcile: bool = True,
     open_log_page: bool = True,
     wait_ms: int = 1200,
+    list_mode: str = "pending",
 ) -> list:
     """打开学习日志 →（可选）平台对账 → 返回待办列表。
 
+    list_mode: pending（默认未观看回放）| full（全量活动，含已观看）。
     菜单与 run_automation 共用，保证 list 前断点/SOFT 语义一致。
     """
     log = log or print
@@ -191,7 +232,14 @@ def load_pending_for_classroom(
         except Exception as e:
             log(f"[job] 打开日志页警告: {e}")
 
-    if reconcile:
+    lm = (list_mode or "pending").strip().lower()
+    if lm in ("full", "force", "full_force", "all_lessons"):
+        lm = "full"
+    else:
+        lm = "pending"
+
+    # 全量模式不对账剔除/补写（避免把「要重刷」的节提前 mark_done）
+    if reconcile and lm != "full":
         reconcile_progress_with_platform(
             page, cid, progress, origin=origin, log=log, soft=soft
         )
@@ -203,6 +251,7 @@ def load_pending_for_classroom(
         origin=origin,
         attend_filter=normalize_attend_filter(attend_filter),
         log=log,
+        mode=lm,
     )
 
 
@@ -236,17 +285,20 @@ def enrich_duration_map(
 def normalize_job_action(action: str) -> tuple[str, str | None]:
     """返回 (归一化动作, 强制 attend_filter 或 None)。
 
-    合法动作: list | once | all | selected | soft
+    合法动作: list | once | all | selected | soft | full
     别名: soft_only / retry_soft → soft；*_absent → filter=absent
+          full_force / force_all → full
     """
     action = (action or "list").strip().lower()
     if action in ("soft_only", "retry_soft"):
         action = "soft"
+    if action in ("full_force", "force_all", "full_all", "force"):
+        action = "full"
     force_af: str | None = None
     if action.endswith("_absent"):
         force_af = "absent"
         action = action[: -len("_absent")] or "list"
-    allowed = ("list", "once", "all", "selected", "soft")
+    allowed = ("list", "once", "all", "selected", "soft", "full")
     if action not in allowed:
         raise ValueError(f"未知动作: {action}")
     return action, force_af

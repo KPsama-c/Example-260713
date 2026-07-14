@@ -270,33 +270,55 @@ def list_pending_replays(
     origin: str = "https://www.yuketang.cn",
     attend_filter: str = "all",
     log: Callable[[str], None] = print,
+    mode: str = "pending",
 ) -> list[LessonActivity]:
-    """待观看回放列表。
+    """待处理活动列表。
 
-    attend_filter:
+    mode:
+      - pending（默认）: 仅平台未观看回放，且不在 progress 断点中
+      - full: 全量活动（含已观看回放）；不在此过滤 progress/live_viewed
+        （跳过规则由上层 filter_skip_full_force 用 soft/progress 判定）
+
+    attend_filter（仅 mode=pending 时生效）:
       - all: 未看回放，无论是否签到
       - absent: 仅缺勤且未看回放
       - present: 仅已签到且未看回放
     """
     progress_keys = progress_keys or set()
-    mode = normalize_attend_filter(attend_filter)
+    af = normalize_attend_filter(attend_filter)
+    list_mode = (mode or "pending").strip().lower()
+    if list_mode in ("full", "force", "full_force", "all_lessons"):
+        list_mode = "full"
+    else:
+        list_mode = "pending"
+
     items = fetch_all_activities(page, classroom_id, origin=origin, log=log)
 
     def _attend_ok(x: LessonActivity) -> bool:
-        if mode == "absent":
+        if af == "absent":
             return not bool(x.attend_status)
-        if mode == "present":
+        if af == "present":
             return bool(x.attend_status)
         return True
+
+    viewed = sum(1 for x in items if x.live_viewed)
+    absent_n = sum(1 for x in items if not x.attend_status)
+
+    if list_mode == "full":
+        # 全量：有 lesson_id 的活动都进列表；跳过交给上层
+        pending = [x for x in items if x.lesson_id]
+        log(
+            f"[logs] 全量模式：活动 {len(items)}，已观看回放 {viewed}，缺勤 {absent_n}，"
+            f"列出 {len(pending)} 节（不按平台 live_viewed/progress 过滤）"
+        )
+        return pending
 
     pending = [
         x
         for x in items
         if x.needs_replay and x.key not in progress_keys and _attend_ok(x)
     ]
-    viewed = sum(1 for x in items if x.live_viewed)
-    absent_n = sum(1 for x in items if not x.attend_status)
-    filter_label = {"all": "不限签到", "absent": "仅缺勤", "present": "仅已签到"}[mode]
+    filter_label = {"all": "不限签到", "absent": "仅缺勤", "present": "仅已签到"}[af]
     skipped = sum(
         1
         for x in items
@@ -307,6 +329,35 @@ def list_pending_replays(
         f"筛选={filter_label}，待处理 {len(pending)}（本筛选断点跳过 {skipped}）"
     )
     return pending
+
+
+def get_activity_flags(
+    page: Page,
+    classroom_id: str,
+    lesson_id: str,
+    *,
+    origin: str = "https://www.yuketang.cn",
+    allow_navigation: bool = True,
+) -> tuple[bool | None, bool | None]:
+    """返回 (live_viewed, attend_status)；找不到或失败为 (None, None)。
+
+    回放进行中请传 allow_navigation=False，避免跳离 overview。
+    """
+    try:
+        items = fetch_all_activities(
+            page,
+            classroom_id,
+            origin=origin,
+            log=lambda *_: None,
+            allow_navigation=allow_navigation,
+        )
+    except Exception:
+        return None, None
+    lid = str(lesson_id)
+    for it in items:
+        if it.lesson_id == lid:
+            return bool(it.live_viewed), bool(it.attend_status)
+    return None, None
 
 
 def is_live_viewed(
@@ -321,20 +372,33 @@ def is_live_viewed(
 
     回放进行中请传 allow_navigation=False，避免跳离 overview。
     """
-    try:
-        items = fetch_all_activities(
-            page,
-            classroom_id,
-            origin=origin,
-            log=lambda *_: None,
-            allow_navigation=allow_navigation,
-        )
-    except Exception:
-        return None
-    for it in items:
-        if it.lesson_id == str(lesson_id):
-            return it.live_viewed
-    return None
+    lv, _ = get_activity_flags(
+        page,
+        classroom_id,
+        lesson_id,
+        origin=origin,
+        allow_navigation=allow_navigation,
+    )
+    return lv
+
+
+def is_attended(
+    page: Page,
+    classroom_id: str,
+    lesson_id: str,
+    *,
+    origin: str = "https://www.yuketang.cn",
+    allow_navigation: bool = True,
+) -> bool | None:
+    """平台 attend_status 是否为已签到。失败/找不到返回 None。"""
+    _, att = get_activity_flags(
+        page,
+        classroom_id,
+        lesson_id,
+        origin=origin,
+        allow_navigation=allow_navigation,
+    )
+    return att
 
 
 def page_shows_replay_done(page: Page) -> bool | None:

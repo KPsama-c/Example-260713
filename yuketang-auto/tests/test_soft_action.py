@@ -19,6 +19,8 @@ def test_normalize_soft_aliases():
     assert normalize_job_action("retry_soft") == ("soft", None)
     assert normalize_job_action("all_absent") == ("all", "absent")
     assert normalize_job_action("list") == ("list", None)
+    assert normalize_job_action("full") == ("full", None)
+    assert normalize_job_action("full_force") == ("full", None)
 
 
 def test_normalize_rejects_junk():

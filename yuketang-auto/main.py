@@ -22,7 +22,9 @@ from yuketang import __version__
 from yuketang.browser import BrowserSession
 from yuketang.classrooms import resolve_classroom_id as resolve_joined_classroom
 from yuketang.doctor import format_doctor_report, run_doctor
+from yuketang.capabilities import PlaybackCapabilities, capabilities_from_cfg
 from yuketang.jobs import (
+    filter_skip_full_force,
     filter_skip_local_complete,
     load_pending_for_classroom,
     reconcile_progress_with_platform,
@@ -146,6 +148,11 @@ def parse_args() -> argparse.Namespace:
         help="仅重试 SOFT（本地达标未平台确认）的节",
     )
     ap.add_argument(
+        "--full",
+        action="store_true",
+        help="全量观看：含已观看回放；仅 soft/progress≥阈值跳过；片尾 seek 试签到",
+    )
+    ap.add_argument(
         "--doctor",
         action="store_true",
         help="本机环境自检后退出（不连业务）",
@@ -266,6 +273,7 @@ def main() -> int:
         args.list_only
         or args.once
         or args.soft_only
+        or args.full
         or (args.max is not None)
         or args.no_menu
         or not is_tty()
@@ -332,6 +340,8 @@ def main() -> int:
             action = "list"
         elif args.soft_only:
             action = "soft"
+        elif args.full:
+            action = "full"
         elif args.once or max_videos == 1:
             action = "once"
         else:
@@ -454,10 +464,11 @@ def main() -> int:
                 action = "all"
                 force_af = "absent"
 
-            if action not in ("list", "once", "all", "soft"):
+            if action not in ("list", "once", "all", "soft", "full"):
                 print("  无效选项，请重新选择。")
                 continue
 
+            is_full = action == "full"
             af = force_af or normalize_attend_filter(cfg.get("attend_filter", "all"))
             try:
                 pending = load_pending_for_classroom(
@@ -466,9 +477,10 @@ def main() -> int:
                     origin=origin,
                     progress=progress,
                     soft=soft,
-                    attend_filter=af,
+                    attend_filter=af if not is_full else "all",
                     log=print,
-                    reconcile=True,
+                    reconcile=not is_full,
+                    list_mode="full" if is_full else "pending",
                 )
             except LogsApiError as e:
                 print(f"[!] {e}")
@@ -487,10 +499,37 @@ def main() -> int:
                     continue
                 print(f"[main] 仅 SOFT 再跑：{len(pending)} 节")
 
+            caps = capabilities_from_cfg(cfg)
+            observe_attend = False
             if action == "once":
                 targets = pending[:1]
             elif action == "soft":
                 targets = list(pending)
+            elif action == "full":
+                targets, skipped_full = filter_skip_full_force(
+                    pending,
+                    classroom_id=str(classroom_id),
+                    complete_ratio=complete_ratio,
+                    progress=progress,
+                    soft=soft,
+                )
+                if skipped_full:
+                    print(
+                        f"[main] 全量：跳过 soft/progress≥{complete_ratio*100:.0f}% 的 "
+                        f"{len(skipped_full)} 节"
+                    )
+                if not targets:
+                    print("[main] 全量：均已本地达线，已跳过")
+                    continue
+                caps = PlaybackCapabilities(
+                    resume_partial=True,
+                    allow_skip_ahead=True,
+                    allow_checkin_assist=True,
+                    tail_seek_sec=caps.tail_seek_sec,
+                    require_threshold_before_tail=True,
+                )
+                observe_attend = True
+                print(f"[main] 全量将处理 {len(targets)} 节（片尾 seek 试签到）")
             else:
                 targets, skipped_local = filter_skip_local_complete(
                     pending,
@@ -533,15 +572,19 @@ def main() -> int:
                 should_cancel=None,
                 update_state=False,
                 partial=partial,
-                resume_partial=resume_partial,
+                resume_partial=bool(caps.resume_partial),
+                capabilities=caps,
+                observe_attend=observe_attend,
             )
             done = int(batch.get("done") or 0)
             fail = int(batch.get("fail") or 0)
             soft_n = int(batch.get("soft_done") or 0)
+            attend_n = int(batch.get("attend_ok") or 0)
             total_done += done
             total_fail += fail
+            att_part = f" / 签到观测 {attend_n}" if observe_attend else ""
             print(
-                f"[main] 本轮 确认 {done} / SOFT {soft_n} / 失败 {fail}"
+                f"[main] 本轮 确认 {done} / SOFT {soft_n} / 失败 {fail}{att_part}"
                 f"（累计确认 {total_done}/失败 {total_fail}）"
             )
             # 与 jobs 一致：观看后再对账一次

@@ -3,8 +3,8 @@
 面向雨课堂「智·汇大讲堂」类直播回放的 **Playwright** 本地助手：找出「未观看回放」，静音倍速播放到有效进度（默认总时长 **65%**）。
 
 > **免责声明**：[DISCLAIMER.md](./DISCLAIMER.md) · 非官方 · 仅限本人账号 · 风险自负  
-> **范围**：只做观看回放；**不**签到、**不**答题  
-> **版本**：0.9.1
+> **范围**：观看回放为主；默认不跳播、不 API 签到、不答题  
+> **版本**：0.9.4
 
 ---
 
@@ -48,10 +48,32 @@ python main.py --id 你的classroom_id --list-only --headed
 
 | 规则 | 说明 |
 |------|------|
-| 仅真实播放 | 不跳播、不伪造观看心跳、不篡改签到/答题 |
+| 不伪造 | 不伪造观看心跳、不协议改签到/答题 |
 | 仅平台确认写断点 | 默认 `require_platform_confirm`；本地达线后 grace + soft_boost 真播 |
 | 播放中不跳日志页 | 完成检查不 `page.goto` 学习日志 |
 | 仅本机自用 | Cookie / 断点在 `data/`，永不进仓、不进纯净包 |
+
+### 能力边界（v0.9.3+）
+
+| 配置 | 默认 | 含义 |
+|------|------|------|
+| `resume_partial` | true | 续播：seek 到本机已观测进度 |
+| `allow_skip_ahead` | **false** | 达线后真 seek 到片尾前 `tail_seek_sec` |
+| `allow_checkin_assist` | **false** | 同上（不改签到 API；不保证「已签到」） |
+| `tail_seek_sec` | 90 | 片尾真播秒数（硬限 30–180） |
+
+Web 控制台「能力边界」可勾选；也可写在 `config.yaml`。开启激进项 = 风险自负。
+
+### 全量观看 `full`（v0.9.4）
+
+| 项 | 行为 |
+|----|------|
+| 列表 | 全部活动（含已观看回放），不按平台签到/回放过滤 |
+| 跳过 | 仅本地 `progress` 完成 **或** soft≥`complete_ratio` |
+| 续播 | 有 partial 记录才续，否则从 0 |
+| 签到 | 达线后片尾真 seek，播后只读观测；**不保证**变已签到 |
+
+入口：Web **全量观看** · 菜单 **[f]** · `python main.py --full`
 
 断点键：`classroom_id:lesson_id`。SOFT 记入 `data/soft.json`，对账后转正。  
 **全部观看**：仅当 `soft.json` 明确记录本地已播到 ≥`complete_ratio`（0→阈值跑完）才跳过；无记录或不达标 → 重看/续看。  

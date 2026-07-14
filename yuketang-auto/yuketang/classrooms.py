@@ -27,6 +27,17 @@ class ClassroomInfo:
         return cn
 
 
+@dataclass
+class FetchRoomsResult:
+    """班级列表拉取结果；auth_failed 时 rooms 为空且不应显示「共 0 个班级」。"""
+
+    rooms: list[ClassroomInfo]
+    ok: bool = True
+    auth_failed: bool = False
+    error: str | None = None
+    raw_errcode: Any = None
+
+
 def _page_fetch_json(page: Page, path: str) -> dict[str, Any] | None:
     data = page.evaluate(
         """async (path) => {
@@ -44,26 +55,37 @@ def _page_fetch_json(page: Page, path: str) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def fetch_joined_classrooms(
-    page: Page,
-    *,
-    log: Callable[[str], None] = print,
-) -> list[ClassroomInfo]:
-    """拉取当前账号已加入的班级（学生身份）。"""
-    payload = _page_fetch_json(page, "/v2/api/web/courses/list?identity=2")
-    if not payload or payload.get("errcode", 0) not in (0, "0", None):
-        # 再试教师/其它身份列表，通常学生用 identity=2
-        payload = _page_fetch_json(page, "/v2/api/web/courses/list?identity=1")
+def is_auth_error_payload(payload: dict[str, Any] | None) -> bool:
+    """识别雨课堂未登录 / session 失效类响应。"""
     if not payload:
-        log("[classroom] 无法获取课程列表 API")
-        return []
+        return False
+    err = payload.get("errcode", payload.get("code"))
+    errmsg = str(payload.get("errmsg") or payload.get("msg") or "").lower()
+    # 401002 Cookie has no sessionid；其它 401xxx / UNAUTHENTICATED
+    if err in (401002, "401002", 401, "401", 401001, "401001"):
+        return True
+    if err in (50000, "50000") and "unauth" in errmsg:
+        return True
+    if "sessionid" in errmsg or "unauth" in errmsg or "not login" in errmsg:
+        return True
+    raw_msg = str(payload.get("errmsg") or payload.get("msg") or "")
+    if "未登录" in raw_msg or ("登录" in raw_msg and "失败" in raw_msg):
+        return True
+    return False
 
-    err = payload.get("errcode", payload.get("code", 0))
-    if err not in (0, "0", None):
-        log(f"[classroom] 课程列表失败: {payload.get('errmsg') or err}")
-        return []
 
-    raw_list = ((payload.get("data") or {}).get("list")) or []
+def auth_error_user_message(detail: str | None = None) -> str:
+    base = (
+        "登录已失效或未完成（缺少 sessionid）。"
+        "请取消勾选「无头模式」，填写课堂后点「刷新待办」，在弹出浏览器中重新登录雨课堂；"
+        "登录成功后再点「刷新我的班级」。"
+    )
+    if detail:
+        return f"{base}（{detail}）"
+    return base
+
+
+def _parse_room_list(raw_list: list[Any]) -> list[ClassroomInfo]:
     out: list[ClassroomInfo] = []
     seen: set[str] = set()
     for item in raw_list:
@@ -88,8 +110,85 @@ def fetch_joined_classrooms(
                 teacher=str(teacher.get("name") or "").strip(),
             )
         )
-    log(f"[classroom] 已加入班级 {len(out)} 个")
     return out
+
+
+def fetch_joined_classrooms_detailed(
+    page: Page,
+    *,
+    log: Callable[[str], None] = print,
+) -> FetchRoomsResult:
+    """拉取班级列表，并区分「未登录」与「真的 0 个班」。"""
+    # 登录页直出时 API 也会 401，先记 URL 辅助判断
+    try:
+        cur = (page.url or "").lower()
+    except Exception:
+        cur = ""
+    on_login_page = (
+        "login" in cur
+        or ("/web/?" in cur and "next=" in cur)
+        or cur.rstrip("/").endswith("/web")
+    )
+
+    payload = _page_fetch_json(page, "/v2/api/web/courses/list?identity=2")
+    if not payload or (
+        payload.get("errcode", 0) not in (0, "0", None)
+        and not is_auth_error_payload(payload)
+    ):
+        # 非认证失败时再试教师身份；认证失败不必重试
+        alt = _page_fetch_json(page, "/v2/api/web/courses/list?identity=1")
+        if alt and (
+            alt.get("errcode", 0) in (0, "0", None) or is_auth_error_payload(alt)
+        ):
+            payload = alt
+        elif not payload:
+            payload = alt
+
+    if not payload:
+        msg = "无法获取课程列表 API"
+        if on_login_page:
+            log(f"[classroom] {msg}（当前像登录页）")
+            return FetchRoomsResult(
+                rooms=[],
+                ok=False,
+                auth_failed=True,
+                error=auth_error_user_message("页面停留在登录"),
+            )
+        log(f"[classroom] {msg}")
+        return FetchRoomsResult(rooms=[], ok=False, error=msg)
+
+    if is_auth_error_payload(payload):
+        detail = str(payload.get("errmsg") or payload.get("msg") or payload.get("errcode") or "")
+        log(f"[classroom] 认证失败: {detail}")
+        return FetchRoomsResult(
+            rooms=[],
+            ok=False,
+            auth_failed=True,
+            error=auth_error_user_message(detail or None),
+            raw_errcode=payload.get("errcode", payload.get("code")),
+        )
+
+    err = payload.get("errcode", payload.get("code", 0))
+    if err not in (0, "0", None):
+        detail = str(payload.get("errmsg") or err)
+        log(f"[classroom] 课程列表失败: {detail}")
+        return FetchRoomsResult(rooms=[], ok=False, error=f"课程列表失败: {detail}", raw_errcode=err)
+
+    raw_list = ((payload.get("data") or {}).get("list")) or []
+    if not isinstance(raw_list, list):
+        raw_list = []
+    out = _parse_room_list(raw_list)
+    log(f"[classroom] 已加入班级 {len(out)} 个")
+    return FetchRoomsResult(rooms=out, ok=True)
+
+
+def fetch_joined_classrooms(
+    page: Page,
+    *,
+    log: Callable[[str], None] = print,
+) -> list[ClassroomInfo]:
+    """拉取当前账号已加入的班级（学生身份）。兼容旧调用；认证失败时返回 []。"""
+    return fetch_joined_classrooms_detailed(page, log=log).rooms
 
 
 def resolve_classroom_id(

@@ -29,6 +29,7 @@ DEFAULTS: dict[str, Any] = {
     "progress_file": "data/progress.json",
     "failed_file": "data/failed.json",
     "soft_file": "data/soft.json",
+    "partial_file": "data/partial.json",
     "max_videos": 0,
     "wait_login_timeout_sec": 180,
     "screenshot_on_error": True,
@@ -36,6 +37,17 @@ DEFAULTS: dict[str, Any] = {
     # 多课堂配置档（断点仍用 classroom:lesson，单 progress 文件即可）
     "profiles": [],
     "active_profile": "",
+    # —— 能力边界（默认保守）——
+    "resume_partial": True,  # 续播：seek 到本机已观测进度
+    "allow_skip_ahead": False,  # 跳播：达线后才可片尾 seek
+    "allow_checkin_assist": False,  # 签到辅助：达线后片尾真播（不改签到 API）
+    "tail_seek_sec": 90,  # 片尾真播秒数 30–180
+    "require_threshold_before_tail": True,  # 片尾 seek 前必须达 complete_ratio
+    "require_platform_confirm": True,
+    "confirm_grace_sec": 120,
+    "soft_boost": 0.10,
+    "retry_per_lesson": 1,
+    "skip_local_complete_on_all": True,
 }
 
 _SAVE_KEYS = (
@@ -63,6 +75,13 @@ _SAVE_KEYS = (
     "confirm_grace_sec",
     "soft_boost",
     "retry_per_lesson",
+    "partial_file",
+    "resume_partial",
+    "allow_skip_ahead",
+    "allow_checkin_assist",
+    "tail_seek_sec",
+    "require_threshold_before_tail",
+    "skip_local_complete_on_all",
 )
 
 _RE_DIGITS = re.compile(r"^\d{5,}$")
