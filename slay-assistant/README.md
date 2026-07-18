@@ -27,13 +27,13 @@ Rust 实现的 *Slay the Spire 2* 实时决策助手。
 
 ### 配置
 
-优先项目根目录 `E:\projects\slay-assistant\config.toml`：
+在项目根目录创建 `config.toml`：
 
 ```powershell
-cd E:\projects\slay-assistant
+cd slay-assistant
 copy config.example.toml config.toml
 notepad config.toml
-# 填入与 NarraFork 相同的 DeepSeek api_key
+# 填入你的 LLM api_key（勿提交此文件）
 ```
 
 也可用环境变量（**覆盖**文件，适合不写密钥到磁盘）：
@@ -91,7 +91,7 @@ timeout_secs = 60
 ## 运行
 
 ```bash
-cd E:\projects\slay-assistant
+cd slay-assistant
 cargo run --release
 ```
 
