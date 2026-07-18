@@ -9,24 +9,7 @@ hotkey = "Ctrl+Shift+A"
 auto_hide_ms = 8000
 overlay_enabled = true
 
-# ───────────────────────────────────────────────────────────────
-# ★ lv10（NarraFork 里 name=lv10 / baseUrl=https://ai.lv10.ren）
-# 与 NF「同款代理」时用这一段。Key 填 NF → 设置 → lv10 里同一个。
-# 模型名可写 NF 里的全名（含前缀），程序会去掉 lv10: 前缀。
-# ───────────────────────────────────────────────────────────────
-[llm]
-# false = 纯本地秒出（lv10 不稳时推荐）
-enabled = true
-api_style = "openai"
-base_url = "https://ai.lv10.ren"
-api_key = "YOUR_LV10_KEY_HERE"
-# 示例：在 NF 选 lv10:gpt-5.6-sol 时，下面写同名即可
-model = "grok-4.5"
-max_tokens = 2000
-# 代理不稳时用 15–25，避免干等 90s
-timeout_secs = 25
-
-# ── 备选：DeepSeek 官方 OpenAI 兼容 ──
+# ── DeepSeek 官方 OpenAI 兼容 ──
 # [llm]
 # api_style = "openai"
 # base_url = "https://api.deepseek.com"
