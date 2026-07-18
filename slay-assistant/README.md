@@ -45,20 +45,6 @@ set SLAY_LLM_BASE_URL=https://api.deepseek.com
 set SLAY_LLM_MODEL=deepseek-chat
 ```
 
-### lv10 代理（对齐 NarraFork 的 lv10 provider）
-
-NarraFork 里 `baseUrl = https://ai.lv10.ren`、`protocol = codex-native` 时，助手侧先按 **OpenAI 兼容** 调 `POST /v1/chat/completions`（探测显示该路径存在；需有效 Key）。
-
-```toml
-[llm]
-api_style = "openai"
-base_url = "https://ai.lv10.ren"
-api_key = "与 NF 设置里 lv10 相同的 Key"
-model = "gpt-5.6-sol"
-# 也可写 "lv10:gpt-5.6-sol"，会自动去掉前缀
-max_tokens = 2000
-timeout_secs = 90
-```
 
 模型名以你在 NF 里实际能选的为准（如 `gpt-5.6-sol` / `gpt-5.5` 等）。
 
