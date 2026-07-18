@@ -21,6 +21,7 @@ win-hotkeys = "0.5"
 # Overlay UI (Phase 3)
 eframe = { version = "0.31", default-features = false, features = ["default_fonts", "glow"] }
 egui = "0.31"
+winit = "0.30"
 parking_lot = "0.12"
 
 # Error handling
@@ -32,3 +33,5 @@ toml = "0.8"
 # Logging
 log = "0.4"
 env_logger = "0.11"
+
+

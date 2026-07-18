@@ -54,12 +54,13 @@ pub fn analyze_map_bfs(state: &GameState) -> Vec<Recommendation> {
         .collect();
     scored.sort_by(|a, b| b.total.cmp(&a.total).then(a.index.cmp(&b.index)));
 
+    // Prefer shop label when gold is the main lever (even if HP is high)
     let phase = if ctx.need_heal {
         "保命（篝火/少硬刚）"
+    } else if ctx.want_shop {
+        "攒店（优先通向商店）"
     } else if ctx.want_elite {
         "进攻（可冲精英）"
-    } else if ctx.want_shop {
-        "攒店"
     } else {
         "均衡"
     };
@@ -260,13 +261,8 @@ fn bfs_value(
         let Some(node) = graph.get(&id) else {
             continue;
         };
-        // expand children (for depth 0 start, children are next rooms after taking this option)
-        let nexts: Vec<String> = if depth == 0 {
-            // start node itself already counted as immediate; expand its children
-            node.children.clone()
-        } else {
-            node.children.clone()
-        };
+        // Expand children from current node
+        let nexts: Vec<String> = node.children.clone();
 
         for child_id in nexts {
             let Some(child) = graph.get(&child_id) else {

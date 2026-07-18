@@ -28,69 +28,56 @@ Rust 实现的 STS2 实时决策辅助工具。通过游戏内 Mod 暴露的 HTT
 
 ```
 ┌──────────────────────────────────────────────┐
-│              STS2 游戏进程 (Godot 4.5.1)      │
+│              STS2 游戏进程 (Godot)            │
 │  ┌────────────────┐                          │
-│  │ STS2MCP Mod    │  HTTP API                │
-│  │ localhost:15526 │  /api/v1/game-state     │
-│  └───────┬────────┘                          │
+│  │ STS2_MCP Mod   │  HTTP API                │
+│  │ localhost:15526 │  /api/v1/singleplayer   │
+│  └───────┬────────┘  /api/v1/multiplayer     │
 └──────────┼───────────────────────────────────┘
            │ HTTP JSON
            ▼
 ┌──────────────────────────────────────────────┐
 │            slay-assistant (Rust)              │
 │                                               │
-│  main.rs         热键 + 事件循环              │
-│  config.rs       TOML 配置管理                │
+│  main.rs         热键 + 多线程任务（可打断）  │
+│  config.rs       TOML + 代理 / LLM 方言       │
+│  run_cache.rs    本局拥有牌（count）+ 快照降级 │
+│  knowledge/      流派库 + 中英别名             │
 │                                               │
 │  game/                                        │
-│    client.rs     HTTP → GameState             │
-│    state.rs      类型定义 (Combat/Map/...)    │
+│    client.rs     singleplayer → 友好错误      │
+│    adapter.rs    STS2_MCP v0.4 JSON 适配      │
+│    state.rs      Combat/Map/Shop/...          │
 │                                               │
-│  analysis/        分析调度                    │
-│    mod.rs        screen_type → 路由           │
-│    combat.rs     战斗分析 (斩杀/伤害/格挡)    │
-│    map.rs        地图路线评估                  │
-│    rewards.rs    卡牌奖励选择                  │
-│    shop.rs       商店购买建议                  │
-│    events.rs     事件选项分析                  │
+│  analysis/        本地秒出 → 可选 LLM         │
+│    heuristics    战斗/选牌/商店/事件/篝火     │
+│    map_bfs       全图多跳 BFS                 │
+│    pipeline      cancel_gen 合并结果          │
 │                                               │
-│  llm/             LLM 集成                    │
-│    mod.rs        OpenAI-compatible 客户端      │
-│    prompts.rs    各场景 Prompt 模板            │
-│                                               │
-│  ui/              UI 层                       │
-│    overlay.rs    悬浮窗 (Phase 3 egui)        │
-│    panels.rs     推荐面板渲染                  │
+│  llm/             OpenAI / Anthropic          │
+│  ui/overlay       egui 置顶 + 可选鼠标穿透    │
 └──────────────────────────────────────────────┘
 ```
 
 ## 数据流
 
 ```
-热键按下 (Ctrl+Shift+A)
+热键 (Ctrl+Shift+A)  →  spawn 分析任务（可 abort 旧任务）
     │
     ▼
-① HTTP GET http://localhost:15526/api/v1/game-state
-    │  (依次尝试 /api/v1/game_state, /game-state, /state)
+① GET /api/v1/singleplayer （失败则 multiplayer；商店 MissingMethod → 降级快照）
     ▼
-② 反序列化 JSON → GameState
-    │  .screen_type → 场景分类
-    │  .combat_state / .map_state / .shop_state / ...
+② adapter → GameState；RunCache.observe(owned only) / enrich
     ▼
-③ 分析调度 (analysis::analyze)
-    │
-    ├── Combat  → 本地启发式 (Phase 4) + LLM (Phase 2)
-    ├── Map     → LLM 路线分析
-    ├── Shop    → LLM 购买建议
-    ├── Event   → LLM 选项评估
-    └── Reward  → LLM 卡牌选择
-    │
+③ analysis：本地启发式秒出 → overlay；可选 LLM（商店无货架时跳过）
     ▼
-④ 渲染推荐 → 终端 (Phase 1-2) / 悬浮窗 (Phase 3)
-    │
-    ▼
-⑤ 自动隐藏 (5s) / 再次按热键隐藏
+④ 终端 + 悬浮窗；再次热键打断 LLM 并重跑
 ```
+
+### 已知外部限制
+
+- STS2_MCP 商店场景可能 500（Inventory `MissingMethodException`）→ 助手降级给进店策略，不读货架
+- 旧路径 `/api/v1/game-state` 在 v0.4 **不存在**
 
 ## 游戏状态类型
 

@@ -64,7 +64,7 @@ pub struct GameState {
     pub rest_state: Option<RestState>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ScreenType {
     #[serde(alias = "MAP")]

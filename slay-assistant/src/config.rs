@@ -51,9 +51,17 @@ pub struct Config {
     /// Show always-on-top egui window (Phase 3)
     #[serde(default = "default_overlay_enabled")]
     pub overlay_enabled: bool,
+
+    /// Mouse clicks pass through the overlay (Windows). Good for playing underneath.
+    #[serde(default = "default_overlay_click_through")]
+    pub overlay_click_through: bool,
 }
 
 fn default_overlay_enabled() -> bool {
+    true
+}
+
+fn default_overlay_click_through() -> bool {
     true
 }
 
@@ -86,6 +94,11 @@ pub struct LlmConfig {
     /// Call remote LLM after local heuristics (false = 纯本地，秒出)
     #[serde(default = "default_llm_enabled")]
     pub enabled: bool,
+
+    /// HTTP(S) proxy for LLM, e.g. `http://127.0.0.1:7897`
+    /// Empty = try env `HTTPS_PROXY` / `HTTP_PROXY` / `SLAY_LLM_PROXY`, else direct.
+    #[serde(default)]
+    pub proxy: String,
 }
 
 fn default_llm_enabled() -> bool {
@@ -110,8 +123,8 @@ fn default_llm_url() -> String {
 }
 
 fn default_llm_model() -> String {
-    // Default: Grok 4.5 (override in config.toml if your proxy uses another id)
-    "grok-4.5".into()
+    // NarraFork: lv10:gpt-5.6-sol → API id gpt-5.6-sol
+    "gpt-5.6-sol".into()
 }
 
 fn default_max_tokens() -> u32 {
@@ -119,7 +132,7 @@ fn default_max_tokens() -> u32 {
 }
 
 fn default_timeout_secs() -> u64 {
-    // Prefer fail-fast when proxy is flaky; override in config.toml
+    // Balance realtime UX vs flaky proxies (override in config.toml)
     25
 }
 
@@ -219,9 +232,41 @@ impl Config {
                 _ => {}
             }
         }
+        if let Ok(v) = std::env::var("SLAY_LLM_PROXY") {
+            if !v.trim().is_empty() {
+                self.llm.proxy = v;
+            }
+        }
 
         // NarraFork model ids look like "lv10:gpt-5.6-sol" / "deepseek:deepseek-v4-pro"
         self.llm.model = strip_provider_prefix(&self.llm.model);
+    }
+
+    /// Resolve proxy URL: config > SLAY_LLM_PROXY > HTTPS_PROXY > HTTP_PROXY > ALL_PROXY.
+    /// Config `proxy = "none"` / `"off"` / `"direct"` forces no proxy (ignores env).
+    pub fn resolve_llm_proxy(&self) -> Option<String> {
+        let p = self.llm.proxy.trim();
+        if !p.is_empty() {
+            if matches!(p.to_ascii_lowercase().as_str(), "none" | "off" | "direct" | "false" | "0") {
+                return None;
+            }
+            return Some(p.to_string());
+        }
+        for key in [
+            "SLAY_LLM_PROXY",
+            "HTTPS_PROXY",
+            "https_proxy",
+            "HTTP_PROXY",
+            "http_proxy",
+            "ALL_PROXY",
+        ] {
+            if let Ok(v) = std::env::var(key) {
+                if !v.trim().is_empty() {
+                    return Some(v.trim().to_string());
+                }
+            }
+        }
+        None
     }
 
     fn resolve_path() -> Result<PathBuf> {
@@ -276,10 +321,12 @@ impl Config {
                 max_tokens: default_max_tokens(),
                 timeout_secs: default_timeout_secs(),
                 enabled: true,
+                proxy: String::new(),
             },
             hotkey: default_hotkey(),
             auto_hide_ms: default_auto_hide_ms(),
             overlay_enabled: true,
+            overlay_click_through: true,
         }
     }
 }

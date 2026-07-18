@@ -81,14 +81,21 @@ impl LlmClient {
         api_style: ApiStyle,
         timeout_secs: u64,
         enabled: bool,
+        proxy: Option<String>,
     ) -> Result<Self> {
         // Fail faster on dead networks; overall timeout still from config.
         let connect = Duration::from_secs(8.min(timeout_secs.max(5)));
-        let http = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .connect_timeout(connect)
             .timeout(Duration::from_secs(timeout_secs.max(5)))
-            .pool_max_idle_per_host(2)
-            .build()?;
+            .pool_max_idle_per_host(2);
+
+        if let Some(proxy_url) = proxy.filter(|s| !s.trim().is_empty()) {
+            log::info!("LLM HTTP proxy: {proxy_url}");
+            builder = builder.proxy(reqwest::Proxy::all(proxy_url.trim())?);
+        }
+
+        let http = builder.build()?;
         Ok(LlmClient {
             http,
             base_url: base_url.trim_end_matches('/').to_string(),
@@ -113,7 +120,7 @@ impl LlmClient {
         self.api_style
     }
 
-    /// Send a chat completion request.
+    /// Send a chat completion request, with one retry on transient errors.
     pub async fn chat(&self, system_prompt: &str, user_message: &str) -> Result<String> {
         if !self.enabled {
             bail!("LLM 已禁用（config llm.enabled=false 或 SLAY_SKIP_LLM=1）");
@@ -122,10 +129,39 @@ impl LlmClient {
             bail!("LLM api_key 为空 — 请编辑 config.toml 填入密钥");
         }
 
-        match self.api_style {
-            ApiStyle::Openai => self.chat_openai(system_prompt, user_message).await,
-            ApiStyle::Anthropic => self.chat_anthropic(system_prompt, user_message).await,
+        let mut last_err = None;
+        for attempt in 0..2 {
+            let result = match self.api_style {
+                ApiStyle::Openai => self.chat_openai(system_prompt, user_message).await,
+                ApiStyle::Anthropic => self.chat_anthropic(system_prompt, user_message).await,
+            };
+            match result {
+                Ok(text) => return Ok(text),
+                Err(e) => {
+                    let msg = e.to_string();
+                    let transient = msg.contains("连接")
+                        || msg.contains("timeout")
+                        || msg.contains("timed out")
+                        || msg.contains("connection")
+                        || msg.contains("dns")
+                        || msg.contains("tls")
+                        || msg.contains("reset")
+                        || msg.contains("refused")
+                        || msg.contains("eof")
+                        || msg.contains("broken pipe");
+                    // Also retry on server errors (5xx)
+                    let server_err = msg.contains("HTTP 5");
+                    if (transient || server_err) && attempt == 0 {
+                        log::warn!("LLM transient error (attempt 1/2): {msg}. Retrying…");
+                        last_err = Some(msg);
+                        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
         }
+        bail!("LLM retry exhausted: {}", last_err.unwrap_or_default());
     }
 
     async fn chat_openai(&self, system_prompt: &str, user_message: &str) -> Result<String> {
@@ -163,10 +199,7 @@ impl LlmClient {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         if !status.is_success() {
-            bail!(
-                "LLM API error {status}: {}",
-                truncate_body(&body, 400)
-            );
+            bail!(rate_limit_msg(status, &body));
         }
 
         let data: OpenaiChatResponse = serde_json::from_str(&body).map_err(|e| {
@@ -212,10 +245,7 @@ impl LlmClient {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
         if !status.is_success() {
-            bail!(
-                "LLM API error {status}: {}",
-                truncate_body(&body, 400)
-            );
+            bail!(rate_limit_msg(status, &body));
         }
 
         let data: AnthropicResponse = serde_json::from_str(&body).map_err(|e| {
@@ -243,4 +273,54 @@ fn truncate_body(s: &str, max: usize) -> String {
     } else {
         t
     }
+}
+
+/// Produce a user-friendly message for HTTP 429 (rate limited).
+fn rate_limit_msg(status: reqwest::StatusCode, body: &str) -> String {
+    if status.as_u16() == 429 {
+        let hint = extract_retry_after(body);
+        if let Some(s) = hint {
+            format!(
+                "LLM 频率限制（429 Too Many Requests）— 建议等待 {}s 再试。原始: {}",
+                s,
+                truncate_body(body, 200)
+            )
+        } else {
+            format!(
+                "LLM 频率限制（429 Too Many Requests）— 稍等几秒再按热键。原始: {}",
+                truncate_body(body, 200)
+            )
+        }
+    } else {
+        format!("LLM API error {}: {}", status.as_u16(), truncate_body(body, 400))
+    }
+}
+
+/// Try to extract retry-after hint from a 429 error body or common header patterns.
+fn extract_retry_after(body: &str) -> Option<String> {
+    // OpenAI-style: "Please retry after X seconds"
+    for pattern in &["retry after", "Retry after", "Please retry after"] {
+        if let Some(pos) = body.find(pattern) {
+            let after = &body[pos + pattern.len()..];
+            // Grab the next number
+            let num: String = after.chars().skip_while(|c| !c.is_ascii_digit()).take_while(|c| c.is_ascii_digit()).collect();
+            if !num.is_empty() {
+                return Some(num);
+            }
+        }
+    }
+    // Try JSON: {"error": {"message": "Rate limit exceeded. Please wait 30 seconds."}}
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
+        if let Some(msg) = v.get("error").and_then(|e| e.get("message").or(Some(e))).and_then(|m| m.as_str()) {
+            for pattern in &["retry after", "wait", "seconds"] {
+                if msg.contains(pattern) {
+                    let num: String = msg.chars().skip_while(|c| !c.is_ascii_digit()).take_while(|c| c.is_ascii_digit()).collect();
+                    if !num.is_empty() {
+                        return Some(num);
+                    }
+                }
+            }
+        }
+    }
+    None
 }

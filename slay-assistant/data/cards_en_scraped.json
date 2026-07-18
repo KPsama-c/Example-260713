@@ -1,0 +1,2807 @@
+[
+  {
+    "type": "Attack",
+    "name": "Bash",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Defend",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Anger",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Armaments",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Blood Wall",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Bloodletting",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Body Slam",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Breakthrough",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Cinder",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Havoc",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Headbutt",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Iron Wave",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Molten Fist",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Perfected Strike",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Pommel Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Setup Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Shrug It Off",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Sword Boomerang",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Thunderclap",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Tremble",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "True Grit",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Twin Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Ashen Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Battle Trance",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Bludgeon",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Bully",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Burning Pact",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Demonic Shield",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Dismantle",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Dominate",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Drum of Battle",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Evil Eye",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Expect a Fight",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Feel No Pain",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Flame Barrier",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Forgotten Ritual",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Grapple",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Hemokinesis",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Howl from Beyond",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Infernal Blade",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Inferno",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Inflame",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Juggling",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Pillage",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Rage",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "this turn, gain",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Rampage",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Rupture",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Second Wind",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Spite",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Stampede",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Stomp",
+    "cost": "3"
+  },
+  {
+    "type": "Power",
+    "name": "Stone Armor",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Taunt",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Unrelenting",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Uppercut",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Vicious",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Whirlwind",
+    "cost": "X"
+  },
+  {
+    "type": "Power",
+    "name": "Aggression",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Barricade",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Brand",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Cascade",
+    "cost": "X"
+  },
+  {
+    "type": "Skill",
+    "name": "Colossus",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Conflagration",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Crimson Mantle",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Cruelty",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Dark Embrace",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Demon Form",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Feed",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Fiend Fire",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Hellraiser",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Impervious",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Juggernaut",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Mangle",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Offering",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "One-Two Punch",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Pact's End",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Primal Force",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Pyre",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Stoke",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Tank",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Tear Asunder",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Thrash",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Unmovable",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Break",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Corruption",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Heavy Blade",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Neutralize",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Survivor",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Acrobatics",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Anticipate",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Backflip",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Blade Dance",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Cloak and Dagger",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Dagger Spray",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Dagger Throw",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Deadly Poison",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Deflect",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Dodge and Roll",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Flick-Flack",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Leading Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Piercing Wail",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Poisoned Stab",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Prepare",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Ricochet",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Slice",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Snakebite",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Sucker Punch",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Untouchable",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Accuracy",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Backstab",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Blur",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Bouncing Flask",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Bubble Bubble",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Calculated Gamble",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Dash",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Escape Plan",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Expertise",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Expose",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Finisher",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Flanking",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Flechettes",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Follow Through",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Footwork",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Hand Trick",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Haze",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Hidden Daggers",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Infinite Blades",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Leg Sweep",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Memento Mori",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Mirage",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Noxious Fumes",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Outbreak",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Phantom Blades",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Pinpoint",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Pounce",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Precise Cut",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Predator",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Reflex",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Skewer",
+    "cost": "X"
+  },
+  {
+    "type": "Power",
+    "name": "Speedster",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Strangle",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Tactician",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Up My Sleeve",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Well-Laid Plans",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Abrasive",
+    "cost": "3"
+  },
+  {
+    "type": "Power",
+    "name": "Accelerant",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Adrenaline",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Afterimage",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Assassinate",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Blade of Ink",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Bullet Time",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Burst",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Corrosive Wave",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Echoing Slash",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Envenom",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "deals unblocked damage, apply",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Fan of Knives",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Grand Finale",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Knife Trap",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Malaise",
+    "cost": "X"
+  },
+  {
+    "type": "Power",
+    "name": "Master Planner",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Murder",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Nightmare",
+    "cost": "3"
+  },
+  {
+    "type": "Power",
+    "name": "Serpent Form",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Shadow Step",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Shadowmeld",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Sneaky",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Storm of Steel",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "The Hunt",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Tools of the Trade",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Tracking",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Suppress",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Wraith Form",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Prepared",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Corpse Explosion",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Dualcast",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Zap",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Ball Lightning",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Barrage",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Beam Cell",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Boost Away",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Charge Battery",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Claw",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Cold Snap",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Compile Driver",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Coolheaded",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Focused Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Go for the Eyes",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Gunk Up",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Hologram",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Hotfix",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Leap",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Lightning Rod",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Momentum Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Sweeping Beam",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "TURBO",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Uproar",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Boot Sequence",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Bulk Up",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Capacitor",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Chaos",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Chill",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Compact",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Darkness",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Double Energy",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Energy Surge",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "FTL",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Feral",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Fight Through",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Fusion",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Glacier",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Glasswork",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Hailstorm",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Iteration",
+    "cost": "1"
+  },
+  {
+    "type": "Status",
+    "name": "card each turn, draw",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Loop",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Null",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Overclock",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Refract",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Rip and Tear",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Rocket Punch",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Scavenge",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Scrape",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Shadow Shield",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Skim",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Smokestack",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Storm",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Subroutine",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Sunder",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Synchronize",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Synthesis",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Tempest",
+    "cost": "X"
+  },
+  {
+    "type": "Attack",
+    "name": "Tesla Coil",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Thunder",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "White Noise",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Adaptive Strike",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "All for One",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Buffer",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Consuming Shadow",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Coolant",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Creative AI",
+    "cost": "3"
+  },
+  {
+    "type": "Power",
+    "name": "Defragment",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Echo Form",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Flak Cannon",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Genetic Algorithm",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Helix Drill",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Hyperbeam",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Ice Lance",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Ignition",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Machine Learning",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Meteor Strike",
+    "cost": "5"
+  },
+  {
+    "type": "Skill",
+    "name": "Modded",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Multi-Cast",
+    "cost": "X"
+  },
+  {
+    "type": "Skill",
+    "name": "Rainbow",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Reboot",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Shatter",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Signal Boost",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Spinner",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Supercritical",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Trash to Treasure",
+    "cost": "1"
+  },
+  {
+    "type": "Status",
+    "name": "card, Channel",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Voltaic",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Biased Cognition",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Quadcast",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Electrodynamics",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Falling Star",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Venerate",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Astral Pulse",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Celestial Might",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Cloak of Stars",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Collision Course",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Cosmic Indifference",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Crescent Spear",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Crush Under",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Gather Light",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Glitterstream",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Glow",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Guiding Star",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Hidden Cache",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Know Thy Place",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Patter",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Photon Cut",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Refine Blade",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Solar Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Spoils of Battle",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Wrought in War",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Alignment",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Black Hole",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Bulwark",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Child of the Stars",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Conqueror",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Convergence",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Devastate",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Furnace",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Gamma Blast",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Glimmer",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Hegemony",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Kingly Kick",
+    "cost": "4"
+  },
+  {
+    "type": "Attack",
+    "name": "Kingly Punch",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Knockout Blow",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Largesse",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Lunar Blast",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Manifest Authority",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Monologue",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Orbit",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Pale Blue Dot",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Parry",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Particle Wall",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Pillar of Creation",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Prophesize",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Quasar",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Radiate",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Reflect",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Resonance",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Royal Gamble",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Shining Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Spectrum Shift",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Stardust",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Summon Forth",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Supermassive",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Terraforming",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Arsenal",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Beat into Shape",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Big Bang",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Bombardment",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Bundle of Joy",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Comet",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Crash Landing",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Decisions, Decisions",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "in your Hand and play it",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Dying Star",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Foregone Conclusion",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Genesis",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Hammer Time",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Heavenly Drill",
+    "cost": "X"
+  },
+  {
+    "type": "Attack",
+    "name": "Heirloom Hammer",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "I Am Invincible",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Make It So",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Monarch's Gaze",
+    "cost": "3"
+  },
+  {
+    "type": "Power",
+    "name": "Neutron Aegis",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Royalties",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Seeking Edge",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Seven Stars",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Sword Sage",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "The Smith",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Tyranny",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Void Form",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Meteor Shower",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "The Sealed Throne",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Bodyguard",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Unleash",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Afterlife",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Blight Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Defile",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Defy",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Drain Power",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Fear",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Flatten",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Grave Warden",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Graveblast",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Invoke",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Negative Pulse",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Poke",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Pull Aggro",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Reap",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Reave",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Scourge",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Sculpting Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Snap",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Sow",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Wisp",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Bone Shards",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Borrowed Time",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Bury",
+    "cost": "4"
+  },
+  {
+    "type": "Power",
+    "name": "Calcify",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Capture Spirit",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Cleanse",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Countdown",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Danse Macabre",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Death March",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Death's Door",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Deathbringer",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Debilitate",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Delay",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Dirge",
+    "cost": "X"
+  },
+  {
+    "type": "Skill",
+    "name": "Dredge",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Enfeebling Touch",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Fetch",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Friendship",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Haunt",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "High Five",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Legion of Bone",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Lethality",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Melancholy",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "No Escape",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Pagestorm",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Parse",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Pull from Below",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Putrefy",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Rattle",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Right Hand Hand",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Severance",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Shroud",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Sic 'Em",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Sleight of Flesh",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Spur",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Veilpiercer",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Banshee's Cry",
+    "cost": "9"
+  },
+  {
+    "type": "Power",
+    "name": "Call of the Void",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Demesne",
+    "cost": "3"
+  },
+  {
+    "type": "Power",
+    "name": "Devour Life",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Eidolon",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "End of Days",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Eradicate",
+    "cost": "X"
+  },
+  {
+    "type": "Skill",
+    "name": "Glimpse Beyond",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Hang",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Misery",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Necro Mastery",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Neurosurge",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Oblivion",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Reanimate",
+    "cost": "3"
+  },
+  {
+    "type": "Power",
+    "name": "Reaper Form",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Sacrifice",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Seance",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Sentry Mode",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Shared Fate",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Soul Storm",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Spirit of Ash",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Squeeze",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "The Scythe",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Time's Up",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Transfigure",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Undeath",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Forbidden Grimoire",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Protector",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Automation",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Believe in You",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Catastrophe",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Coordinate",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Dark Shackles",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Discovery",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Dramatic Entrance",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Equilibrium",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Fasten",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Finesse",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Fisticuffs",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Flash of Steel",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Gang Up",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Huddle Up",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Impatience",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Intercept",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Jack of All Trades",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Lift",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Mind Blast",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Omnislice",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Panache",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Panic Button",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Prep Time",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Production",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Prolong",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Prowess",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Purity",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Restlessness",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Seeker Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Shockwave",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Splash",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Stratagem",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Tag Team",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "The Bomb",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Thinking Ahead",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Thrumming Hatchet",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Ultimate Defend",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Ultimate Strike",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Volley",
+    "cost": "X"
+  },
+  {
+    "type": "Skill",
+    "name": "Alchemize",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Anointed",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Beacon of Hope",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Beat Down",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Bolas",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Calamity",
+    "cost": "3"
+  },
+  {
+    "type": "Power",
+    "name": "Entropy",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Eternal Armor",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Gold Axe",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Hand of Greed",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Hidden Gem",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Jackpot",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Knockdown",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Master of Strategy",
+    "cost": "0"
+  },
+  {
+    "type": "Power",
+    "name": "Mayhem",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Mimic",
+    "cost": "1"
+  },
+  {
+    "type": "Power",
+    "name": "Nostalgia",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Rally",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Rend",
+    "cost": "2"
+  },
+  {
+    "type": "Power",
+    "name": "Rolling Boulder",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Salvo",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Scrawl",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Secret Technique",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Secret Weapon",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "The Gambit",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Apotheosis",
+    "cost": "2"
+  },
+  {
+    "type": "Skill",
+    "name": "Apparition",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Brightest Flame",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Maul",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Neow's Fury",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Relax",
+    "cost": "3"
+  },
+  {
+    "type": "Attack",
+    "name": "Whistle",
+    "cost": "3"
+  },
+  {
+    "type": "Skill",
+    "name": "Wish",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Fuel",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Giant Rock",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Luminesce",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Minion Dive Bomb",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Minion Sacrifice",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Minion Strike",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Shiv",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Soul",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Sovereign Blade",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Sweeping Gaze",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Byrd Swoop",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Enlightenment",
+    "cost": "0"
+  },
+  {
+    "type": "Attack",
+    "name": "Exterminate",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Feeding Frenzy",
+    "cost": "0"
+  },
+  {
+    "type": "Skill",
+    "name": "Metamorphosis",
+    "cost": "2"
+  },
+  {
+    "type": "Attack",
+    "name": "Peck",
+    "cost": "1"
+  },
+  {
+    "type": "Attack",
+    "name": "Squash",
+    "cost": "1"
+  },
+  {
+    "type": "Skill",
+    "name": "Toric Toughness",
+    "cost": "2"
+  },
+  {
+    "type": "Status",
+    "name": "Curse Cards",
+    "cost": "36"
+  },
+  {
+    "type": "Curse",
+    "name": "Ascender's Bane",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Bad Luck",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Beckon",
+    "cost": "1"
+  },
+  {
+    "type": "Status",
+    "name": "Burn",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Clumsy",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Curse of the Bell",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Dazed",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Debris",
+    "cost": "1"
+  },
+  {
+    "type": "Curse",
+    "name": "Debt",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Decay",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Disintegration",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Doubt",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Enthralled",
+    "cost": "2"
+  },
+  {
+    "type": "Curse",
+    "name": "Folly",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Frantic Escape",
+    "cost": "1"
+  },
+  {
+    "type": "Curse",
+    "name": "Greed",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Guilty",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Infection",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Injury",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Mind Rot",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Normality",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Poor Sleep",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Regret",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Shame",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Slimed",
+    "cost": "1"
+  },
+  {
+    "type": "Status",
+    "name": "Sloth",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Soot",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Spore Mind",
+    "cost": "1"
+  },
+  {
+    "type": "Status",
+    "name": "Toxic",
+    "cost": "1"
+  },
+  {
+    "type": "Status",
+    "name": "Void",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Waste Away",
+    "cost": "0"
+  },
+  {
+    "type": "Status",
+    "name": "Wound",
+    "cost": "0"
+  },
+  {
+    "type": "Curse",
+    "name": "Writhe",
+    "cost": "0"
+  }
+]

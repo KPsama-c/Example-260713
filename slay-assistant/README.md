@@ -3,8 +3,12 @@
 Rust 实现的 *Slay the Spire 2* 实时决策助手。
 
 ```text
-热键 (Ctrl+Shift+A) → HTTP 读游戏状态 → LLM 分析 → 终端显示推荐
+热键 (Ctrl+Shift+A) → 读 STS2_MCP 状态
+  → 流派知识库 + 本地启发式/BFS → 终端 + 悬浮窗
+  → （可选）LLM 补充
 ```
+
+内置 **角色流派库**（`data/archetypes.json`）：铁甲/静默/缺陷/摄政/死灵的主流构筑、核心牌、过牌与出牌思路，会参与选牌打分与战斗/地图提示。
 
 ## 前置条件
 
@@ -27,13 +31,13 @@ Rust 实现的 *Slay the Spire 2* 实时决策助手。
 
 ### 配置
 
-在项目根目录创建 `config.toml`：
+优先项目根目录 `E:\projects\slay-assistant\config.toml`：
 
 ```powershell
-cd slay-assistant
+cd E:\projects\slay-assistant
 copy config.example.toml config.toml
 notepad config.toml
-# 填入你的 LLM api_key（勿提交此文件）
+# 填入与 NarraFork 相同的 DeepSeek api_key
 ```
 
 也可用环境变量（**覆盖**文件，适合不写密钥到磁盘）：
@@ -77,7 +81,7 @@ timeout_secs = 60
 ## 运行
 
 ```bash
-cd slay-assistant
+cd E:\projects\slay-assistant
 cargo run --release
 ```
 
@@ -107,12 +111,17 @@ cargo build --release
 
 ```text
 src/
-  main.rs          热键 + 事件循环
-  config.rs        TOML 配置（含 api_style）
-  game/            HTTP 客户端 + GameState
-  analysis/        场景路由 + LLM 调用 + 解析
-  llm/             双协议客户端 + prompts
-  ui/              终端推荐面板（Phase 3 将做悬浮窗）
+  main.rs          热键 + 多线程分析任务（可打断 LLM）
+  config.rs        TOML（api_style / proxy / overlay 穿透）
+  run_cache.rs     本局拥有牌 count + 降级快照
+  knowledge/       流派库 + 中英卡名别名
+  game/            STS2_MCP client + adapter + GameState
+  analysis/        本地启发式 + BFS + 可选 LLM
+  llm/             OpenAI / Anthropic
+  ui/              egui 置顶悬浮窗 + 终端面板
+data/
+  archetypes.json  角色流派
+  card_aliases.json  EN/CN 别名
 ```
 
 ## 进度
@@ -121,14 +130,17 @@ src/
 |-------|------|------|
 | 1 | 骨架、状态读取、热键 | 完成 |
 | 2 | LLM 双协议 + 全场景分析 | 完成 |
-| 3 | egui 置顶悬浮窗 | **完成**（`overlay_enabled`） |
+| 3 | egui 置顶悬浮窗 + 可选穿透 | **完成** |
 | 4 | 本地战斗/选路/选牌启发式 | 完成 |
-| 5 | STS2MCP 对齐 + 地图 BFS | **完成**（全图多跳） |
+| 5 | STS2_MCP 对齐 + 地图 BFS | **完成** |
+| 6 | 拥有牌缓存 / 商店降级 / 热键打断 | **完成** |
+
 ## 已知限制
 
-- 真实 Mod 的 JSON 字段若与 `game/state.rs` 不一致，会解析失败；日志会提示  
-- 无 API Key 时：战斗可显示极简本地速览，其它场景提示配置缺失  
-- 悬浮窗尚未实现，推荐仅输出到终端  
+- **商店**：STS2_MCP 在部分游戏版本上 `MerchantRoom.Inventory` 崩溃 → 无法读货架；助手会降级给进店策略（不调 LLM 空等）  
+- 无 API Key / `llm.enabled=false`：纯本地秒出  
+- 热键分析中再按一次可打断并重新拉状态  
+- 缓存文件 `run_card_cache.json` 仅含本局**拥有**牌，不把奖励候选当牌组  
 
 ## 许可
 

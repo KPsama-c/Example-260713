@@ -80,14 +80,6 @@ fn from_sts2mcp(v: &Value) -> GameState {
         .or_else(|| v.get("rest_site"))
         .map(parse_rest);
 
-    let screen_type = if state_type.eq_ignore_ascii_case("combat")
-        || state_type.eq_ignore_ascii_case("battle")
-    {
-        ScreenType::Combat
-    } else {
-        screen_type
-    };
-
     GameState {
         screen_type,
         seed: v
@@ -357,6 +349,26 @@ fn parse_map(m: &Value) -> MapState {
                 children: o.leads_to.clone(),
                 parents: vec![],
             });
+        }
+    }
+
+    // Populate reverse edges (parents) from children references
+    {
+        // Collect (parent_id, child_id) pairs
+        let mut child_parents: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for n in &nodes {
+            for ch in &n.children {
+                child_parents
+                    .entry(ch.clone())
+                    .or_default()
+                    .push(n.id.clone());
+            }
+        }
+        for n in &mut nodes {
+            if let Some(p) = child_parents.remove(&n.id) {
+                n.parents = p;
+            }
         }
     }
 
@@ -731,5 +743,126 @@ mod tests {
         assert_eq!(rew.gold, Some(14));
         assert_eq!(rew.items.len(), 2);
         assert!(rew.can_skip);
+    }
+
+    #[test]
+    fn parse_empty_body_errors() {
+        assert!(parse_game_state_json("").is_err());
+        assert!(parse_game_state_json("{}").is_ok()); // Unknown screen but valid JSON
+    }
+
+    #[test]
+    fn parse_error_envelope() {
+        let text = r#"{"error": "Game not started yet"}"#;
+        let err = parse_game_state_json(text).unwrap_err();
+        assert!(err.to_string().contains("Game not started"));
+    }
+
+    #[test]
+    fn parse_combat_nested_under_player_combat() {
+        let text = r#"{
+            "state_type": "combat",
+            "combat": {
+                "player_combat": {
+                    "turn": 2,
+                    "energy": 3,
+                    "max_energy": 3,
+                    "block": 5,
+                    "hand": [
+                        {"id": "strike", "name": "打击", "card_type": "Attack", "cost": 1, "damage": 6}
+                    ],
+                    "draw_pile": [],
+                    "discard_pile": [],
+                    "exhaust_pile": [],
+                    "powers": [],
+                    "enemies": [
+                        {"id": "e1", "name": "敌人A", "hp": 20, "max_hp": 30, "block": 0, "intent": {"intent_type": "Attack", "damage": 8, "hits": 1}}
+                    ]
+                }
+            },
+            "run": {"act": 1, "floor": 3, "ascension": 0},
+            "player": {"character": "Ironclad", "hp": 70, "max_hp": 80, "gold": 50, "relics": [], "potions": []}
+        }"#;
+        let state = parse_game_state_json(text).unwrap();
+        assert_eq!(state.screen_type, ScreenType::Combat);
+        let c = state.combat_state.expect("combat");
+        assert_eq!(c.turn, 2);
+        assert_eq!(c.block, 5);
+        assert_eq!(c.hand.len(), 1);
+        assert_eq!(c.enemies.len(), 1);
+    }
+
+    #[test]
+    fn parse_shop_with_nested_cards() {
+        let text = r#"{
+            "state_type": "shop",
+            "shop": {
+                "cards": [
+                    {"card": {"id": "heavy_blade", "name": "重刃", "card_type": "Attack", "cost": 2, "damage": 14}, "price": 120}
+                ],
+                "relics": [],
+                "potions": [],
+                "removal_cost": 75
+            },
+            "run": {"act": 1, "floor": 4, "ascension": 0},
+            "player": {"character": "铁甲战士", "hp": 70, "max_hp": 80, "gold": 200, "relics": [], "potions": []}
+        }"#;
+        let state = parse_game_state_json(text).unwrap();
+        assert_eq!(state.screen_type, ScreenType::Shop);
+        let shop = state.shop_state.expect("shop");
+        assert_eq!(shop.cards.len(), 1);
+        assert_eq!(shop.cards[0].price, 120);
+        assert_eq!(shop.cards[0].item.name, "重刃");
+        assert_eq!(shop.removal_cost, Some(75));
+    }
+
+    #[test]
+    fn parse_state_type_aliases() {
+        for (input, expected) in &[
+            ("merchant", ScreenType::Shop),
+            ("fake_merchant", ScreenType::Shop),
+            ("battle", ScreenType::Combat),
+            ("bossreward", ScreenType::BossReward),
+            ("restsite", ScreenType::Rest),
+            ("gameover", ScreenType::GameOver),
+        ] {
+            let text = format!(
+                r#"{{"state_type": "{input}", "run": {{"act": 1, "floor": 1}}, "player": {{"character": "x", "hp": 10, "max_hp": 10, "gold": 0, "relics": [], "potions": []}}}}"#
+            );
+            let state = parse_game_state_json(&text).unwrap();
+            assert_eq!(
+                state.screen_type, *expected,
+                "state_type={input} → expected {expected:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_map_parents_populated() {
+        let text = r#"{
+            "state_type": "map",
+            "map": {
+                "nodes": [
+                    {"col": 0, "row": 0, "type": "Monster", "children": [[1, 0], [1, 1]]},
+                    {"col": 1, "row": 0, "type": "Shop", "children": [[2, 0]]},
+                    {"col": 1, "row": 1, "type": "Elite", "children": [[2, 0]]},
+                    {"col": 2, "row": 0, "type": "RestSite", "children": []}
+                ],
+                "current_position": {"col": 0, "row": 0}
+            },
+            "run": {"act": 1, "floor": 1},
+            "player": {"character": "Ironclad", "hp": 80, "max_hp": 80, "gold": 99, "relics": [], "potions": []}
+        }"#;
+        let state = parse_game_state_json(text).unwrap();
+        let map = state.map_state.expect("map");
+        assert_eq!(map.nodes.len(), 4);
+
+        // Shop (1,0) should have parent (0,0)
+        let shop = map.nodes.iter().find(|n| n.id == "1,0").expect("shop node");
+        assert!(shop.parents.contains(&"0,0".to_string()), "shop parents: {:?}", shop.parents);
+
+        // RestSite (2,0) should have parents (1,0) and (1,1)
+        let rest = map.nodes.iter().find(|n| n.id == "2,0").expect("rest node");
+        assert_eq!(rest.parents.len(), 2);
     }
 }

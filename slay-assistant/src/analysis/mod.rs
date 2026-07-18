@@ -9,16 +9,24 @@ pub mod shop;
 
 use crate::game::state::{GameState, ScreenType};
 use crate::llm::{prompts, LlmClient};
+use crate::ui::overlay::OverlayHandle;
+use std::sync::atomic::AtomicU64;
 
 /// Analyze the current game state and return recommendations.
-pub async fn analyze(state: &GameState, llm: &LlmClient) -> Vec<Recommendation> {
+pub async fn analyze(
+    state: &GameState,
+    llm: &LlmClient,
+    overlay: &OverlayHandle,
+    cancel_gen: &AtomicU64,
+    my_gen: u64,
+) -> Vec<Recommendation> {
     match state.screen_type {
-        ScreenType::Combat => combat::analyze(state, llm).await,
-        ScreenType::Map => map::analyze(state, llm).await,
-        ScreenType::Shop => shop::analyze(state, llm).await,
-        ScreenType::Event => events::analyze(state, llm).await,
-        ScreenType::Reward | ScreenType::BossReward => rewards::analyze(state, llm).await,
-        ScreenType::Rest => rest_fallback(state, llm).await,
+        ScreenType::Combat => combat::analyze(state, llm, overlay, cancel_gen, my_gen).await,
+        ScreenType::Map => map::analyze(state, llm, overlay, cancel_gen, my_gen).await,
+        ScreenType::Shop => shop::analyze(state, llm, overlay, cancel_gen, my_gen).await,
+        ScreenType::Event => events::analyze(state, llm, overlay, cancel_gen, my_gen).await,
+        ScreenType::Reward | ScreenType::BossReward => rewards::analyze(state, llm, overlay, cancel_gen, my_gen).await,
+        ScreenType::Rest => rest_fallback(state, llm, overlay, cancel_gen, my_gen).await,
         _ => vec![Recommendation {
             rank: 1,
             title: "等待中".into(),
@@ -27,11 +35,20 @@ pub async fn analyze(state: &GameState, llm: &LlmClient) -> Vec<Recommendation> 
     }
 }
 
-async fn rest_fallback(state: &GameState, llm: &LlmClient) -> Vec<Recommendation> {
+async fn rest_fallback(
+    state: &GameState,
+    llm: &LlmClient,
+    overlay: &OverlayHandle,
+    cancel_gen: &AtomicU64,
+    my_gen: u64,
+) -> Vec<Recommendation> {
     let local = heuristics::analyze_rest_local(state);
     pipeline::local_then_llm(
         state,
         llm,
+        overlay,
+        cancel_gen,
+        my_gen,
         local,
         "本地篝火建议（秒出）",
         |json| {
@@ -112,6 +129,19 @@ fn state_for_llm(state: &GameState) -> serde_json::Value {
 }
 
 fn slim_general(state: &GameState) -> serde_json::Value {
+    // Cap deck / map size so hotkey LLM stays under token budget.
+    let deck: Vec<_> = state.deck.iter().take(40).collect();
+    let deck_truncated = state.deck.len().saturating_sub(deck.len());
+    let map = state.map_state.as_ref().map(|m| {
+        let nodes: Vec<_> = m.nodes.iter().take(80).collect();
+        serde_json::json!({
+            "current_node_id": m.current_node_id,
+            "boss_id": m.boss_id,
+            "next_options": m.next_options,
+            "nodes": nodes,
+            "nodes_truncated": m.nodes.len().saturating_sub(nodes.len()),
+        })
+    });
     serde_json::json!({
         "screen_type": state.screen_type,
         "character": state.character,
@@ -121,15 +151,18 @@ fn slim_general(state: &GameState) -> serde_json::Value {
         "current_hp": state.current_hp,
         "max_hp": state.max_hp,
         "gold": state.gold,
-        "deck": state.deck,
+        "deck": deck,
+        "deck_truncated": deck_truncated,
+        "deck_size": state.deck.len(),
         "relics": state.relics,
         "potions": state.potions,
-        "map_state": state.map_state,
+        "map_state": map,
         "shop_state": state.shop_state,
         "event_state": state.event_state,
         "reward_state": state.reward_state,
         "rest_state": state.rest_state,
-        "combat_state": state.combat_state,
+        // Full combat only needed on combat screen (use slim_combat).
+        "combat_state": serde_json::Value::Null,
     })
 }
 
@@ -383,5 +416,33 @@ mod tests {
     fn parse_empty() {
         assert!(parse_recommendations("").is_empty());
         assert!(parse_recommendations("   \n  ").is_empty());
+    }
+
+    #[test]
+    fn parse_chinese_number_format() {
+        // "1、" and "2、" format (Chinese enumeration)
+        let text = "1、出痛击然后防御\n2、先防御再出痛击\n3、乱打牌";
+        let recs = parse_recommendations(text);
+        assert_eq!(recs.len(), 3);
+        assert_eq!(recs[0].rank, 1);
+        assert!(recs[0].title.contains("痛击") || recs[0].description.contains("痛击"));
+        assert_eq!(recs[1].rank, 2);
+        assert_eq!(recs[2].rank, 3);
+    }
+
+    #[test]
+    fn parse_single_line_fallback() {
+        let recs = parse_recommendations("直接打精英，血线还够。");
+        assert_eq!(recs.len(), 1);
+        assert_eq!(recs[0].rank, 1);
+        assert!(recs[0].description.contains("精英"));
+    }
+
+    #[test]
+    fn parse_title_with_em_dash() {
+        let text = "1. **推荐操作**\n出痛击 — 伤害高且易伤\n2. **备选方案**\n防御 — 敌人下回合高伤";
+        let recs = parse_recommendations(text);
+        assert!(recs.len() >= 2);
+        assert_eq!(recs[0].rank, 1);
     }
 }

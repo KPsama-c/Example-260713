@@ -1,6 +1,7 @@
 /target
 /dist
 config.toml
+run_card_cache.json
 .env
 *.pdb
 *.exe

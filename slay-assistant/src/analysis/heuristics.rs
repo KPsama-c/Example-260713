@@ -8,8 +8,8 @@ pub fn analyze_combat_local(state: &GameState) -> Vec<Recommendation> {
     let Some(combat) = state.combat_state.as_ref() else {
         return vec![Recommendation {
             rank: 1,
-            title: "本地分析".into(),
-            description: "当前无 combat_state 数据".into(),
+            title: "📋 本地分析".into(),
+            description: "等待进入战斗…".into(),
         }];
     };
 
@@ -35,7 +35,7 @@ pub fn analyze_combat_local(state: &GameState) -> Vec<Recommendation> {
     if out.is_empty() {
         out.push(Recommendation {
             rank: 1,
-            title: "本地速览".into(),
+            title: "📋 战况速览".into(),
             description: snapshot_line(combat),
         });
     }
@@ -87,13 +87,36 @@ fn is_playable(card: &Card, energy: i32) -> bool {
     card.cost <= energy
 }
 
-/// Total attack damage currently in hand (ignoring multi-target / powers for simplicity).
+/// Whether a card's damage hits all enemies (AoE).
+fn is_aoe(card: &Card) -> bool {
+    let desc = card.description.as_deref().unwrap_or("").to_ascii_lowercase();
+    let name = card.name.to_ascii_lowercase();
+    desc.contains("all enemy")
+        || desc.contains("全部敌人")
+        || desc.contains("所有敌人")
+        || desc.contains("全体")
+        || name.contains("cleave")
+        || name.contains("whirlwind")
+        || name.contains("旋风")
+        || name.contains("横扫")
+        || name.contains("顺劈")
+}
+
+/// Total single-target attack damage in hand (AoE cards count once per enemy).
 fn total_hand_damage(combat: &CombatState) -> i32 {
+    let enemy_count = living_enemies(combat).len().max(1) as i32;
     combat
         .hand
         .iter()
-        .filter(|c| is_playable(c, combat.energy) || c.cost <= combat.energy)
-        .map(card_damage)
+        .filter(|c| is_playable(c, combat.energy))
+        .map(|c| {
+            let dmg = card_damage(c);
+            if is_aoe(c) && enemy_count > 1 {
+                dmg * enemy_count
+            } else {
+                dmg
+            }
+        })
         .sum()
 }
 
@@ -132,13 +155,13 @@ fn kill_line_rec(combat: &CombatState) -> Option<Recommendation> {
         let eff = hp + e.block.max(0);
         if hand_dmg >= eff && hand_dmg > 0 {
             killable.push(format!(
-                "{} (有效HP≈{}，手牌总伤≈{})",
-                e.name, eff, hand_dmg
+                "{}  HP{}+盾{}={} ← 手牌伤{} → 斩杀",
+                e.name, hp, e.block.max(0), eff, hand_dmg
             ));
         } else if let Some((card, dmg)) = best {
             if dmg >= eff {
                 killable.push(format!(
-                    "{} 可用「{}」斩杀 (伤{} ≥ 有效HP{})",
+                    "{}  用「{}」斩杀（伤{} ≥ HP{}）",
                     e.name, card.name, dmg, eff
                 ));
             }
@@ -148,8 +171,8 @@ fn kill_line_rec(combat: &CombatState) -> Option<Recommendation> {
     if !killable.is_empty() {
         return Some(Recommendation {
             rank: 1,
-            title: "斩杀线".into(),
-            description: format!("可尝试击杀：{}", killable.join("；")),
+            title: "⚔️ 可斩杀".into(),
+            description: killable.join("\n"),
         });
     }
 
@@ -157,14 +180,16 @@ fn kill_line_rec(combat: &CombatState) -> Option<Recommendation> {
     let lowest = enemies.iter().min_by_key(|e| {
         e.current_hp.unwrap_or(i32::MAX) + e.block.max(0)
     })?;
-    let eff = lowest.current_hp.unwrap_or(0) + lowest.block.max(0);
+    let hp = lowest.current_hp.unwrap_or(0);
+    let blk = lowest.block.max(0);
+    let eff = hp + blk;
     let gap = (eff - hand_dmg).max(0);
     Some(Recommendation {
         rank: 1,
-        title: "斩杀线".into(),
+        title: "⚔️ 斩杀线".into(),
         description: format!(
-            "本回合手牌总伤≈{}，最低目标 {} 有效HP≈{}，还差约 {}",
-            hand_dmg, lowest.name, eff, gap
+            "手牌伤 {} vs {}\nHP{} + 盾{} = {} → 还差 {}",
+            hand_dmg, lowest.name, hp, blk, eff, gap
         ),
     })
 }
@@ -174,8 +199,8 @@ fn block_rec(combat: &CombatState, state: &GameState) -> Option<Recommendation> 
     if incoming <= 0 {
         return Some(Recommendation {
             rank: 1,
-            title: "格挡评估".into(),
-            description: "本回合未见敌人攻击意图，可优先输出/铺场".into(),
+            title: "🛡️ 格挡评估".into(),
+            description: "敌人本回合无攻击意图 → 放心输出".into(),
         });
     }
 
@@ -190,31 +215,31 @@ fn block_rec(combat: &CombatState, state: &GameState) -> Option<Recommendation> 
 
     let hp = state.current_hp.unwrap_or(0);
     let after = (hp - need.max(0)).max(0);
-    let danger = if need > 0 && after * 100 / state.max_hp.unwrap_or(hp.max(1)).max(1) < 30 {
-        " ⚠ 受击后血线可能进入危险区（<30%）"
+    let max_hp = state.max_hp.unwrap_or(hp.max(1)).max(1);
+    let pct_after = after * 100 / max_hp;
+
+    let status = if need == 0 {
+        "✓ 已有格挡足够".to_string()
+    } else if hand_block >= need {
+        format!("✓ 手牌格挡≈{} ≥ 净伤{} → 能防住", hand_block, need)
     } else {
-        ""
+        format!("✗ 手牌格挡≈{} < 净伤{} → 差≈{}", hand_block, need, need - hand_block)
+    };
+
+    let danger = if need > 0 && pct_after < 30 {
+        format!("\n⚠ 受击后 HP {}/{}（{}%）→ 危险！", after, max_hp, pct_after)
+    } else if need > 0 {
+        format!("\n受击后 HP ≈ {}/{}（{}%）", after, max_hp, pct_after)
+    } else {
+        String::new()
     };
 
     Some(Recommendation {
         rank: 1,
-        title: "格挡评估".into(),
+        title: "🛡️ 格挡评估".into(),
         description: format!(
-            "预计承伤 {}，已有格挡 {}，净伤 {}；可打牌格挡≈{}。{}",
-            incoming,
-            have,
-            need,
-            hand_block,
-            if need == 0 {
-                "已够格挡或可无伤。".to_string()
-            } else if hand_block >= need {
-                format!("手牌格挡足以覆盖缺口。{danger}")
-            } else {
-                format!(
-                    "格挡可能不够（差≈{}），考虑药水或保守出牌。{danger}",
-                    need - hand_block
-                )
-            }
+            "承伤 {} → 格挡 {} → 净伤 {}\n{}{}",
+            incoming, have, need, status, danger
         ),
     })
 }
@@ -242,9 +267,9 @@ fn energy_rank_rec(combat: &CombatState) -> Option<Recommendation> {
     if scored.is_empty() {
         return Some(Recommendation {
             rank: 1,
-            title: "能量效率".into(),
+            title: "⚡ 能量效率".into(),
             description: format!(
-                "能量 {}/{}；手牌暂无明确伤害/格挡数值（Mod 可能未提供 damage/block 字段）",
+                "能量 {}/{}  |  手牌暂无数值（Mod 未提供 damage/block）",
                 combat.energy, combat.max_energy
             ),
         });
@@ -253,19 +278,19 @@ fn energy_rank_rec(combat: &CombatState) -> Option<Recommendation> {
     let top: Vec<String> = scored
         .iter()
         .take(4)
-        .map(|(name, ratio, value, cost)| {
-            format!("{name}({cost}费,值{value},比{ratio:.1})")
+        .map(|(name, _ratio, value, cost)| {
+            format!("{}({}费·值{})", name, cost, value)
         })
         .collect();
 
     Some(Recommendation {
         rank: 1,
-        title: "能量效率".into(),
+        title: "⚡ 能量效率".into(),
         description: format!(
-            "能量 {}/{}；性价比排序：{}",
+            "能量 {}/{}  →  {}",
             combat.energy,
             combat.max_energy,
-            top.join(" > ")
+            top.join("  >  ")
         ),
     })
 }
@@ -296,13 +321,13 @@ fn play_order_rec(combat: &CombatState) -> Option<Recommendation> {
         );
     }
 
-    // Pass 3: highest damage among affordable
+    // Pass 3: highest damage among affordable (0 = no early stop)
     play_pass_sorted(
         &mut remaining,
         &mut energy,
         &mut order,
         |c| card_damage(c),
-        i32::MAX,
+        0,
     );
 
     // Pass 4: any remaining affordable skills
@@ -313,14 +338,14 @@ fn play_order_rec(combat: &CombatState) -> Option<Recommendation> {
     if order.is_empty() {
         return Some(Recommendation {
             rank: 1,
-            title: "出牌建议".into(),
+            title: "🎯 出牌建议".into(),
             description: format!(
-                "当前能量 {} 可能打不出手牌，考虑结束回合或用药水。手牌：{}",
+                "能量 {} 打不出手牌 → 结束回合\n手牌：{}",
                 combat.energy,
                 combat
                     .hand
                     .iter()
-                    .map(|c| format!("{}({}费)", c.name, c.cost))
+        .map(|c| format!("{}({}费)", crate::knowledge::display_name(c), c.cost))
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
@@ -329,9 +354,9 @@ fn play_order_rec(combat: &CombatState) -> Option<Recommendation> {
 
     Some(Recommendation {
         rank: 1,
-        title: "出牌建议".into(),
+        title: "🎯 出牌顺序".into(),
         description: format!(
-            "启发式顺序：{} → 结束回合（剩余能量≈{}）",
+            "{} → 结束（余 {} 能量）",
             order.join(" → "),
             energy
         ),
@@ -351,7 +376,7 @@ fn play_pass(
             let cost = c.cost.max(0);
             if cost <= *energy {
                 *energy -= cost;
-                order.push(c.name.clone());
+        order.push(crate::knowledge::display_name(c));
                 remaining.remove(i);
                 continue;
             }
@@ -365,8 +390,9 @@ fn play_pass_sorted(
     energy: &mut i32,
     order: &mut Vec<String>,
     score: impl Fn(&Card) -> i32,
-    stop_when_score_zero_or: i32,
+    cumulative_stop: i32,
 ) {
+    let mut cumulative = 0i32;
     loop {
         let best_idx = remaining
             .iter()
@@ -377,10 +403,10 @@ fn play_pass_sorted(
 
         let Some(idx) = best_idx else { break };
         let c = remaining[idx];
-        if score(c) <= 0 {
+        let val = score(c);
+        if val <= 0 {
             break;
         }
-        // For block pass, stop when we've "enough" — approximate by cumulative not tracked; one pass greedy.
         let cost = c.cost.max(0);
         if cost > *energy {
             break;
@@ -388,12 +414,11 @@ fn play_pass_sorted(
         *energy -= cost;
         order.push(c.name.clone());
         remaining.remove(idx);
+        cumulative += val;
 
-        if stop_when_score_zero_or != i32::MAX {
-            // block mode: after a few block cards, continue until energy tight
-            if order.len() >= 3 {
-                break;
-            }
+        // Stop early when cumulative output meets the target (e.g. enough block to cover incoming damage)
+        if cumulative_stop > 0 && cumulative >= cumulative_stop {
+            break;
         }
     }
 }
@@ -506,7 +531,7 @@ pub fn analyze_rewards_local(state: &GameState) -> Vec<Recommendation> {
                 let (score, reasons) = score_reward_card(c, state, &relic_ids, &relic_names, deck_n, act);
                 let title = format!(
                     "{}{}",
-                    c.name,
+                    crate::knowledge::display_name(c),
                     if c.upgraded { "+" } else { "" }
                 );
                 (score, i, title, reasons.join("；"))
@@ -516,7 +541,7 @@ pub fn analyze_rewards_local(state: &GameState) -> Vec<Recommendation> {
 
         out.push(Recommendation {
             rank: 1,
-            title: "★ 选牌原则".into(),
+            title: "🃏 选牌原则".into(),
             description: format!(
                 "牌组约 {deck_n} 张 | Act{act} | 遗物：{}。优先：稀有/强力输出或关键防御 > 一般攻击 > 劣质打击/防御；后期牌多更敢 skip。",
                 if relic_names.is_empty() {
@@ -746,12 +771,117 @@ fn score_reward_card(
         }
     }
 
+    // Archetype / meta knowledge (core cards, tags)
+    let (arch_s, arch_why) = crate::knowledge::score_card_for_archetypes(c, state);
+    score += arch_s;
+    why.extend(arch_why);
+
     // Cap why lines
-    why.truncate(4);
+    why.truncate(5);
     if why.is_empty() {
         why.push("综合中庸".into());
     }
     (score, why)
+}
+
+/// When MCP cannot expose the shelf (MissingMethod / degraded), give pre-shop strategy.
+fn shop_degraded_local(state: &GameState, gold: i32, hp_pct: i32) -> Vec<Recommendation> {
+    let deck_n = state.deck.len();
+    let act = state.act.unwrap_or(1);
+    let keep = if act <= 1 { 50 } else { 80 };
+
+    let mut out = vec![
+        Recommendation {
+            rank: 1,
+            title: "⚠ 商店货架不可读".into(),
+            description: "STS2_MCP 商店 Inventory API 与当前游戏版本不匹配（MissingMethod / get_Inventory）。无法列出在售卡。处理：离开商店回地图后再按热键；根治需更新 Mod（GitHub PR #117 / Issue #114）。".into(),
+        },
+        Recommendation {
+            rank: 2,
+            title: "进店前策略（基于缓存牌组）".into(),
+            description: format!(
+                "持金 {gold} | HP {hp_pct}% | 牌组约 {deck_n} 张 | Act{act}。优先：删基础打击/防御 → 关键遗物 → 补流派核心；血线低优先药水/别硬买高费。"
+            ),
+        },
+        Recommendation {
+            rank: 3,
+            title: "删牌优先".into(),
+            description: if deck_n >= 18 {
+                format!("牌组偏厚（{deck_n}）— 有删牌服务时优先删打击/防御；留约 {keep} 金应急。")
+            } else if deck_n >= 12 {
+                format!("牌组中等（{deck_n}）— 有明显废牌再删；预算离店约 {keep} 金。")
+            } else {
+                format!("牌组仍薄（{deck_n}）— 可先买核心牌，删牌非必须；留约 {keep} 金。")
+            },
+        },
+        Recommendation {
+            rank: 4,
+            title: "预算".into(),
+            description: format!(
+                "建议离店至少留约 {keep} 金；HP {hp_pct}% 偏低时优先自保而非豪购。"
+            ),
+        },
+    ];
+
+    // Top remove candidates from owned deck names
+    let mut basics: Vec<String> = state
+        .deck
+        .iter()
+        .filter(|c| {
+            let n = c.name.to_ascii_lowercase();
+            let id = c.id.to_ascii_lowercase();
+            n.contains("strike")
+                || n.contains("defend")
+                || n.contains("打击")
+                || n.contains("防御")
+                || id.contains("strike")
+                || id.contains("defend")
+        })
+        .map(|c| crate::knowledge::display_name(c))
+        .collect();
+    basics.sort();
+    basics.dedup();
+    if !basics.is_empty() {
+        out.push(Recommendation {
+            rank: 5,
+            title: "可考虑删除".into(),
+            description: format!(
+                "{}（共 {} 种基础牌痕迹）",
+                basics.into_iter().take(6).collect::<Vec<_>>().join("、"),
+                state
+                    .deck
+                    .iter()
+                    .filter(|c| {
+                        let n = c.name.to_ascii_lowercase();
+                        n.contains("strike")
+                            || n.contains("defend")
+                            || n.contains("打击")
+                            || n.contains("防御")
+                    })
+                    .count()
+            ),
+        });
+    }
+
+    if let Some(kit) = crate::knowledge::detect_archetypes(state) {
+        out.push(Recommendation {
+            rank: 6,
+            title: format!("流派：{}", kit.primary.name),
+            description: format!(
+                "{} — 商店优先找：{}",
+                kit.primary.pick_priority.chars().take(80).collect::<String>(),
+                kit.primary
+                    .core_cards
+                    .iter()
+                    .take(4)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" / ")
+            ),
+        });
+    }
+
+    out
 }
 
 /// Shop: buy / remove / skip with gold budget.
@@ -763,16 +893,12 @@ pub fn analyze_shop_local(state: &GameState) -> Vec<Recommendation> {
         hp * 100 / max
     };
     let Some(shop) = state.shop_state.as_ref() else {
-        return vec![Recommendation {
-            rank: 1,
-            title: "商店".into(),
-            description: format!("持金 {gold} — 无 shop_state（Mod 可能未展开货架）"),
-        }];
+        return shop_degraded_local(state, gold, hp_pct);
     };
 
     let mut out = vec![Recommendation {
         rank: 1,
-        title: "★ 商店总览".into(),
+        title: "🛒 商店总览".into(),
         description: format!(
             "持金 {gold} | HP {}% | 卡 {} 件 / 遗物 {} / 药水 {} | 删牌费 {:?}",
             hp_pct,
@@ -803,9 +929,10 @@ pub fn analyze_shop_local(state: &GameState) -> Vec<Recommendation> {
             if !afford {
                 s -= 20;
             }
+            let name = crate::knowledge::display_name(&si.item);
             let title = format!(
                 "{}{} ({}金{})",
-                si.item.name,
+                name,
                 if si.item.upgraded { "+" } else { "" },
                 si.price,
                 if afford { "" } else { "·买不起" }
@@ -832,7 +959,7 @@ pub fn analyze_shop_local(state: &GameState) -> Vec<Recommendation> {
             title: "【遗物】可买".into(),
             description: format!(
                 "{} — {}金 — {}",
-                r.item.name,
+                crate::knowledge::translate_card_name(&r.item.name),
                 r.price,
                 r.item.description.as_deref().unwrap_or("看描述是否核心")
             ),
@@ -843,7 +970,9 @@ pub fn analyze_shop_local(state: &GameState) -> Vec<Recommendation> {
             title: "【遗物】暂缓".into(),
             description: format!(
                 "最便宜 {} 需 {} 金，当前 {} 金不够或性价比一般",
-                r.item.name, r.price, gold
+                crate::knowledge::translate_card_name(&r.item.name),
+                r.price,
+                gold
             ),
         });
     }
@@ -896,7 +1025,7 @@ pub fn analyze_event_local(state: &GameState) -> Vec<Recommendation> {
 
     let mut out = vec![Recommendation {
         rank: 1,
-        title: "★ 事件".into(),
+        title: "📜 事件".into(),
         description: format!(
             "{} | HP {}/{}（{}%）| 金 {} | 选项 {} 个",
             ev.event_name.as_deref().unwrap_or("未知事件"),
@@ -999,7 +1128,7 @@ pub fn analyze_rest_local(state: &GameState) -> Vec<Recommendation> {
 
     let mut out = vec![Recommendation {
         rank: 1,
-        title: "★ 篝火".into(),
+        title: "🔥 篝火".into(),
         description: format!(
             "HP {hp}/{max_hp}（{hp_pct}%），缺 {missing} 血；休息大约回 ~{heal_est}（以游戏为准）"
         ),
