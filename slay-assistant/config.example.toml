@@ -1,0 +1,51 @@
+# ═══════════════════════════════════════════════════════════════
+# Slay Assistant · 方案 A
+# 复制:  copy config.example.toml config.toml
+# 密钥:  只写在本地 config.toml 或环境变量，勿提交、勿发聊天
+# ═══════════════════════════════════════════════════════════════
+
+game_api_url = "http://localhost:15526"
+hotkey = "Ctrl+Shift+A"
+auto_hide_ms = 8000
+overlay_enabled = true
+
+# ───────────────────────────────────────────────────────────────
+# ★ lv10（NarraFork 里 name=lv10 / baseUrl=https://ai.lv10.ren）
+# 与 NF「同款代理」时用这一段。Key 填 NF → 设置 → lv10 里同一个。
+# 模型名可写 NF 里的全名（含前缀），程序会去掉 lv10: 前缀。
+# ───────────────────────────────────────────────────────────────
+[llm]
+# false = 纯本地秒出（lv10 不稳时推荐）
+enabled = true
+api_style = "openai"
+base_url = "https://ai.lv10.ren"
+api_key = "YOUR_LV10_KEY_HERE"
+# 示例：在 NF 选 lv10:gpt-5.6-sol 时，下面写同名即可
+model = "grok-4.5"
+max_tokens = 2000
+# 代理不稳时用 15–25，避免干等 90s
+timeout_secs = 25
+
+# ── 备选：DeepSeek 官方 OpenAI 兼容 ──
+# [llm]
+# api_style = "openai"
+# base_url = "https://api.deepseek.com"
+# api_key = "YOUR_KEY"
+# model = "deepseek-chat"
+# max_tokens = 2000
+# timeout_secs = 60
+
+# ── 备选：DeepSeek Anthropic 路径（NF 里 deepseek provider）──
+# [llm]
+# api_style = "anthropic"
+# base_url = "https://api.deepseek.com/anthropic"
+# api_key = "YOUR_KEY"
+# model = "deepseek-chat"
+# max_tokens = 2000
+# timeout_secs = 60
+
+# 环境变量（覆盖文件）:
+#   set SLAY_LLM_API_KEY=...
+#   set SLAY_LLM_BASE_URL=https://ai.lv10.ren
+#   set SLAY_LLM_MODEL=lv10:gpt-5.6-sol
+#   set SLAY_LLM_API_STYLE=openai
